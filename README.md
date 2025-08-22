@@ -13,7 +13,7 @@ An AI-powered language learning chat application that helps users practice conve
 
    🚀 Live Demo
 
-Check out the live app: [Language Buddy on Netlify](https://your-app-name.netlify.app)
+Check out the live app: [Language Buddy on Netlify]([https://your-app-name.netlify.app](https://adorable-puffpuff-fc6e40.netlify.app/))
 
    🛠️ Technologies Used
 
@@ -127,5 +127,6 @@ MIT License - feel free to use this project for learning!
 ⭐ If you find this project helpful, please give it a star!
 
    📝 Development Notes
+
 
 This project uses CDN links for Firebase - no local package installation required. Simply open `index.html` in a browser after configuring your API keys.
