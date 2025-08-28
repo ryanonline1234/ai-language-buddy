@@ -317,6 +317,13 @@
             align-items: center;
         }
 
+        .input-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
         .message-input {
             flex: 1;
             padding: 12px 16px;
@@ -329,6 +336,38 @@
 
         .message-input:focus {
             border-color: #4facfe;
+        }
+
+        .voice-btn {
+            padding: 12px;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .voice-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .voice-btn.listening {
+            background: linear-gradient(135deg, #ff4757 0%, #c44569 100%);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
         }
 
         .send-btn {
@@ -350,6 +389,54 @@
 
         .send-btn:active {
             transform: translateY(0);
+        }
+
+        /* Voice Features Bar Styles */
+        .voice-features-bar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            padding: 10px 0;
+            border-top: 1px solid #e0e0e0;
+            margin-top: 10px;
+        }
+
+        .feature-btn {
+            padding: 8px 15px;
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .feature-btn:hover {
+            background: #e9ecef;
+            border-color: #4facfe;
+            color: #4facfe;
+        }
+
+        .feature-btn.active {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border-color: #4facfe;
+            color: white;
+            box-shadow: 0 3px 10px rgba(79, 172, 254, 0.3);
+        }
+
+        .voice-status {
+            font-size: 12px;
+            color: #666;
+            font-style: italic;
+            margin-left: 10px;
+            padding: 5px 10px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
         }
 
         /* Dashboard Styles */
@@ -514,6 +601,10 @@
             align-items: center;
             animation: fadeIn 0.3s ease;
         }
+
+        #dashboard-container.show {
+            display: flex;
+        }
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
@@ -600,53 +691,243 @@
             font-size: 1rem;
             font-weight: 600;
         }
+        /* Additional Dashboard Styles */
+        .user-profile-section {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            margin: 20px;
+            border-radius: 15px;
+        }
+
+        .profile-avatar {
+            font-size: 3rem;
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .profile-info h3 {
+            margin: 0;
+            color: #333;
+            font-size: 1.5rem;
+        }
+
+        .member-since {
+            color: #666;
+            margin: 5px 0 0 0;
+        }
+
+        .language-progress-section {
+            padding: 20px;
+            margin: 20px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .language-progress-section h3 {
+            margin: 0 0 20px 0;
+            color: #333;
+        }
+
+        .language-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .language-stat {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 10px;
+            min-width: 150px;
+        }
+
+        .language-flag {
+            font-size: 1.5rem;
+        }
+
+        .language-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .language-count {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .activity-section {
+            padding: 20px;
+            margin: 20px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .activity-section h3 {
+            margin: 0 0 20px 0;
+            color: #333;
+        }
+
+        .activity-chart {
+            display: flex;
+            gap: 5px;
+            align-items: end;
+            height: 60px;
+        }
+
+        .activity-day {
+            flex: 1;
+            height: 15px;
+            background: #e9ecef;
+            border-radius: 3px;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.3s;
+        }
+
+        .activity-day.active {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            height: 30px;
+        }
+
+        .activity-day:hover {
+            transform: translateY(-3px);
+        }
+
+        .stat-progress {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border-radius: 4px;
+            transition: width 1s ease;
+            width: 0%;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .section-header h3 {
+            margin: 0;
+            color: #333;
+        }
+
+        .favorite-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
+            transition: background 0.3s;
+        }
+
+        .favorite-item:hover {
+            background: #f8f9fa;
+        }
+
+        .favorite-item:last-child {
+            border-bottom: none;
+        }
+
+        .favorite-content {
+            flex: 1;
+        }
+
+        .favorite-phrase {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .favorite-translation {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .favorite-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .favorite-language {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .remove-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            opacity: 0.5;
+            transition: opacity 0.3s;
+        }
+
+        .remove-btn:hover {
+            opacity: 1;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+
+        .empty-state p {
+            margin: 0;
+            font-style: italic;
+        }
+
         @media (max-width: 768px) {
-            .container {
-                margin: 10px;
-                border-radius: 15px;
-            }
-
-            .header h1 {
-                font-size: 1.5rem;
-            }
-
-            #chat-container {
-                height: 500px;
-            }
-
-            .language-selectors {
-                flex-direction: column;
+            .voice-features-bar {
                 gap: 5px;
-                font-size: 12px;
             }
-
-            .message-content {
-                max-width: 85%;
-                font-size: 14px;
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .dashboard-btn {
+            
+            .feature-btn {
                 padding: 6px 10px;
                 font-size: 12px;
             }
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 15px;
-                padding: 15px;
+            
+            .user-profile-section {
+                flex-direction: column;
+                text-align: center;
             }
-            .stat-card {
-                padding: 15px;
+            
+            .language-stats {
+                justify-content: center;
             }
-            .stat-value {
-                font-size: 1.8rem;
-            }
-            #dashboard-container > div {
-                width: 95%;
-                margin: 10px;
+            
+            .language-stat {
+                min-width: 120px;
             }
         }
     </style>
@@ -744,7 +1025,7 @@
         </div>
 
         <!-- ====== COMPLETE DASHBOARD HTML ====== -->
-        <div id="dashboard-container" class="dashboard-overlay" style="display: none;">
+        <div id="dashboard-container" class="dashboard-overlay">
             <div class="dashboard-modal">
                 <div class="dashboard-header">
                     <div class="header-content">
@@ -814,7 +1095,7 @@
                             <div class="achievement-progress">0/1</div>
                         </div>
                         <div class="achievement" data-id="conversation-starter" data-achieved="false">
-                            <div class="achievement-icon">�</div>
+                            <div class="achievement-icon">💬</div>
                             <div class="achievement-name">Conversation Starter</div>
                             <div class="achievement-desc">Send 10 messages</div>
                             <div class="achievement-progress">0/10</div>

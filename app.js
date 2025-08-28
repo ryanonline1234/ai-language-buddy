@@ -503,7 +503,8 @@ function changeLanguage() {
 // ====== COMPLETE DASHBOARD FUNCTIONALITY ======
 
 function openDashboard() {
-  document.getElementById('dashboard-container').style.display = 'flex';
+  const dashboard = document.getElementById('dashboard-container');
+  dashboard.style.display = 'flex';
   loadDashboardData();
   loadFavorites();
   loadLanguageStats();
