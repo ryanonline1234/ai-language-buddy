@@ -544,7 +544,20 @@ function showAuthInterface() {
   if (password) password.value = '';
 }
 
-function clearChat() {
+async function clearChat() {
+  // Show confirmation dialog since this is permanent
+  const confirmClear = confirm(
+    `⚠️ Are you sure you want to permanently delete all ${currentActiveLanguage} conversation messages?\n\nThis action cannot be undone.`
+  );
+  
+  if (!confirmClear) {
+    console.log('Chat clear cancelled by user');
+    return;
+  }
+  
+  // Show loading message
+  addSystemMessage(`Clearing ${currentActiveLanguage} conversation...`);
+  
   const chatMessages = document.getElementById('chat-messages');
   if (chatMessages) {
     chatMessages.innerHTML = '';
@@ -557,7 +570,50 @@ function clearChat() {
   
   // Keep backward compatibility
   conversationHistory = [];
-  console.log('✅ Chat cleared for', currentActiveLanguage);
+  
+  // Delete messages from Firebase for the current language
+  await clearChatFromDatabase(currentActiveLanguage);
+  
+  console.log('✅ Chat cleared permanently for', currentActiveLanguage);
+}
+
+async function clearChatFromDatabase(language) {
+  if (!db || !window.auth.currentUser) {
+    console.log('No database connection or user not authenticated');
+    return;
+  }
+  
+  try {
+    const conversationsRef = db.collection('users')
+      .doc(window.auth.currentUser.uid)
+      .collection('conversations');
+    
+    // Query for messages in the specific language
+    const snapshot = await conversationsRef.where('language', '==', language).get();
+    
+    if (snapshot.empty) {
+      console.log(`No messages found for language: ${language}`);
+      addSystemMessage(`✅ ${language} conversation was already empty`);
+      return;
+    }
+    
+    // Delete all messages for this language in batches
+    const batch = db.batch();
+    snapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+    
+    await batch.commit();
+    console.log(`✅ Successfully deleted ${snapshot.docs.length} messages for ${language} from database`);
+    
+    // Show success message to user
+    addSystemMessage(`✅ Successfully cleared ${snapshot.docs.length} ${language} messages permanently`);
+    
+  } catch (error) {
+    console.error('❌ Error clearing chat from database:', error);
+    // Show user-friendly error message
+    addSystemMessage(`❌ Failed to permanently delete messages. Error: ${error.message}`);
+  }
 }
 
 // Handle Enter key press in message input
