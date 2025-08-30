@@ -8,6 +8,19 @@ let autoSpeakEnabled = false;
 let slowModeEnabled = false;
 let pronunciationModeEnabled = false;
 
+// Language tab variables
+let currentActiveLanguage = 'Spanish';
+let conversationHistoryByLanguage = {
+  'Spanish': [],
+  'French': [],
+  'German': [],
+  'Italian': [],
+  'Portuguese': [],
+  'Japanese': [],
+  'Korean': [],
+  'Chinese': []
+};
+
 // Initialize Firebase when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
   console.log('🚀 DOM loaded, starting Firebase initialization...');
@@ -148,17 +161,40 @@ async function loadConversationHistory() {
             .doc(window.auth.currentUser.uid)
             .collection('conversations')
             .orderBy('timestamp', 'desc')
-            .limit(50)
+            .limit(200) // Increased limit to accommodate multiple languages
             .get();
-        const messages = [];
+        
+        // Group messages by language
+        const messagesByLanguage = {};
+        
         snapshot.forEach(doc => {
-            messages.push(doc.data());
+            const data = doc.data();
+            const language = data.language || 'Spanish'; // Default to Spanish for older messages
+            
+            if (!messagesByLanguage[language]) {
+                messagesByLanguage[language] = [];
+            }
+            messagesByLanguage[language].push(data);
         });
-        // Display messages in reverse order (oldest first)
-        messages.reverse().forEach(msg => {
-            addMessage(msg.message, msg.sender);
+        
+        // Load messages for each language tab
+        Object.keys(messagesByLanguage).forEach(language => {
+            if (conversationHistoryByLanguage[language]) {
+                // Display messages in reverse order (oldest first)
+                const messages = messagesByLanguage[language].reverse();
+                messages.forEach(msg => {
+                    addMessageToLanguageTab(msg.message, msg.sender, language);
+                });
+                
+                // Store in our conversation history
+                conversationHistoryByLanguage[language] = messages.map(msg => ({
+                    message: msg.message,
+                    sender: msg.sender
+                }));
+            }
         });
-        console.log(`✅ Loaded ${messages.length} messages from history`);
+        
+        console.log(`✅ Loaded conversation history for languages:`, Object.keys(messagesByLanguage));
     } catch (error) {
         console.error('Error loading history:', error);
     }
@@ -416,7 +452,14 @@ function sendMessage() {
 }
 
 function addMessage(message, sender) {
-    const chatMessages = document.getElementById('chatMessages');
+    // Add to current active language tab
+    addMessageToLanguageTab(message, sender, currentActiveLanguage);
+}
+
+function addMessageToLanguageTab(message, sender, language) {
+    const chatMessages = document.getElementById(language) || document.getElementById('chatMessages');
+    if (!chatMessages) return;
+    
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('message', sender);
     
@@ -440,13 +483,15 @@ function addMessage(message, sender) {
     
     // Auto-speak if enabled
     if (sender === 'ai' && autoSpeakEnabled) {
-        const targetLanguage = document.getElementById('targetLanguage')?.value || 'Spanish';
+        const targetLanguage = language || currentActiveLanguage || 'Spanish';
         setTimeout(() => speakText(message, targetLanguage), 500);
     }
 }
 
 function showTypingIndicator() {
-  const chatMessages = document.getElementById('chatMessages');
+  const chatMessages = document.getElementById(currentActiveLanguage) || document.getElementById('chatMessages');
+  if (!chatMessages) return;
+  
   const typingDiv = document.createElement('div');
   typingDiv.classList.add('message', 'ai', 'typing');
   typingDiv.id = 'typing-indicator';
@@ -495,10 +540,17 @@ function showAuthInterface() {
 }
 
 function clearChat() {
-  const chatMessages = document.getElementById('chatMessages');
+  const chatMessages = document.getElementById(currentActiveLanguage) || document.getElementById('chatMessages');
   if (chatMessages) chatMessages.innerHTML = '';
+  
+  // Clear the conversation history for the current language
+  if (conversationHistoryByLanguage[currentActiveLanguage]) {
+    conversationHistoryByLanguage[currentActiveLanguage] = [];
+  }
+  
+  // Keep backward compatibility
   conversationHistory = [];
-  console.log('✅ Chat cleared');
+  console.log('✅ Chat cleared for', currentActiveLanguage);
 }
 
 // Handle Enter key press in message input
@@ -515,6 +567,87 @@ function changeLanguage() {
   // Update speech recognition language if available
   if (typeof updateRecognitionLanguage === 'function') {
     updateRecognitionLanguage();
+  }
+  // Also switch to the corresponding language tab
+  openLanguageTab(targetLanguage);
+}
+
+// ====== LANGUAGE TAB FUNCTIONS ======
+function openLanguageTab(language) {
+  // Save current conversation to the previous language
+  saveCurrentConversationState();
+  
+  // Hide all tab content
+  const tabContents = document.querySelectorAll('.tab-content');
+  tabContents.forEach(tab => {
+    tab.style.display = 'none';
+    tab.classList.remove('active');
+  });
+  
+  // Remove active class from all tabs
+  const tabs = document.querySelectorAll('.language-tab');
+  tabs.forEach(tab => {
+    tab.classList.remove('active');
+  });
+  
+  // Show selected tab content and mark tab as active
+  const selectedContent = document.getElementById(language);
+  const selectedTab = document.querySelector(`[data-language="${language}"]`);
+  
+  if (selectedContent && selectedTab) {
+    selectedContent.style.display = 'block';
+    selectedContent.classList.add('active');
+    selectedTab.classList.add('active');
+    
+    // Update the current active language
+    currentActiveLanguage = language;
+    
+    // Update the dropdown to match
+    const targetLanguageSelect = document.getElementById('targetLanguage');
+    if (targetLanguageSelect) {
+      targetLanguageSelect.value = language;
+    }
+    
+    // Load conversation for this language
+    loadConversationForLanguage(language);
+    
+    // Update speech recognition language if available
+    if (typeof updateRecognitionLanguage === 'function') {
+      updateRecognitionLanguage();
+    }
+    
+    console.log('Switched to language tab:', language);
+  }
+}
+
+function saveCurrentConversationState() {
+  // Save the current conversation to the appropriate language array
+  if (currentActiveLanguage && conversationHistoryByLanguage[currentActiveLanguage]) {
+    // Get all messages from the current active chat container
+    const currentChatContainer = document.getElementById(currentActiveLanguage);
+    if (currentChatContainer) {
+      const messages = currentChatContainer.querySelectorAll('.message');
+      conversationHistoryByLanguage[currentActiveLanguage] = Array.from(messages).map(msg => {
+        const messageText = msg.querySelector('.message-text')?.textContent || '';
+        const sender = msg.classList.contains('user') ? 'user' : 'ai';
+        return { message: messageText, sender: sender };
+      });
+    }
+  }
+}
+
+function loadConversationForLanguage(language) {
+  const chatContainer = document.getElementById(language);
+  if (!chatContainer) return;
+  
+  // Clear the chat container
+  chatContainer.innerHTML = '';
+  
+  // Load messages for this language from the stored conversation history
+  if (conversationHistoryByLanguage[language] && conversationHistoryByLanguage[language].length > 0) {
+    conversationHistoryByLanguage[language].forEach(msgData => {
+      addMessageToLanguageTab(msgData.message, msgData.sender, language);
+    });
   }
 }
 
