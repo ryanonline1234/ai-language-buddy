@@ -449,6 +449,17 @@ async function signOut() {
   window.auth.signOut().then(() => {
     console.log('✅ User signed out');
     conversationHistory = []; // Clear conversation when signing out
+    // Clear conversation history by language to prevent duplication on re-login
+    conversationHistoryByLanguage = {
+      'Spanish': [],
+      'French': [],
+      'German': [],
+      'Italian': [],
+      'Portuguese': [],
+      'Japanese': [],
+      'Korean': [],
+      'Chinese': []
+    };
     const chatMessages = document.getElementById('chat-messages');
     if (chatMessages) chatMessages.innerHTML = '';
     showAuthInterface();
@@ -778,6 +789,36 @@ function saveCurrentConversationState() {
   }
 }
 
+// Display message without saving to Firestore (for loading existing messages)
+function displayMessage(message, sender) {
+    const chatMessages = document.getElementById('chat-messages');
+    if (!chatMessages) {
+        console.error('Chat messages container not found');
+        return;
+    }
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.classList.add('message', sender);
+    
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    // Add buttons to messages
+    const messageHTML = `
+        <div class="message-content">
+            <div class="message-text">${message}</div>
+            <div class="message-actions">
+                <button class="message-speaker-btn" onclick="speakMessage('${message.replace(/'/g, "\\'")}', '${sender}')">🔊</button>
+                <button class="message-favorite-btn" onclick="favoriteMessage('${message.replace(/'/g, "\\'")}', '${sender}')">⭐</button>
+            </div>
+            <div class="message-time">${timestamp}</div>
+        </div>
+    `;
+    
+    messageDiv.innerHTML = messageHTML;
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
 function loadConversationForLanguage(language) {
   const chatContainer = document.getElementById('chat-messages');
   if (!chatContainer) return;
@@ -788,7 +829,7 @@ function loadConversationForLanguage(language) {
   // Load messages for this language from the stored conversation history
   if (conversationHistoryByLanguage[language] && conversationHistoryByLanguage[language].length > 0) {
     conversationHistoryByLanguage[language].forEach(msgData => {
-      addMessage(msgData.message, msgData.sender);
+      displayMessage(msgData.message, msgData.sender);
     });
   }
 }
