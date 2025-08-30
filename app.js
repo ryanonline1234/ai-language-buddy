@@ -65,6 +65,7 @@ function initializeApp() {
         initializeSidebar(); // Initialize sidebar
         setTimeout(() => {
           loadConversationHistory();
+          recalculateMessageCount(); // Fix any incorrect message counts
         }, 1000);
         showChatInterface();
       } else {
@@ -142,7 +143,7 @@ async function saveMessageToFirestore(message, sender, language) {
                 language: language,
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
             });
-        // Update user stats
+        // Only increment totalMessages counter for user messages (conversation exchanges)
         if (sender === 'user') {
             const userRef = db.collection('users').doc(window.auth.currentUser.uid);
             await userRef.update({
@@ -151,6 +152,54 @@ async function saveMessageToFirestore(message, sender, language) {
         }
     } catch (error) {
         console.error('Error saving message:', error);
+    }
+}
+
+// Function to recalculate accurate message count from database
+async function recalculateMessageCount() {
+    if (!db || !window.auth.currentUser) return;
+    try {
+        // Count only user messages (conversation exchanges)
+        const snapshot = await db.collection('users')
+            .doc(window.auth.currentUser.uid)
+            .collection('conversations')
+            .where('sender', '==', 'user')
+            .get();
+        
+        const actualCount = snapshot.size;
+        
+        // Update the user's stats with the correct count
+        const userRef = db.collection('users').doc(window.auth.currentUser.uid);
+        await userRef.update({
+            'stats.totalMessages': actualCount
+        });
+        
+        console.log(`✅ Message count corrected: ${actualCount} conversations`);
+        return actualCount;
+    } catch (error) {
+        console.error('Error recalculating message count:', error);
+        return null;
+    }
+}
+
+// Manual function to fix message count with user feedback
+async function fixMessageCount() {
+    addSystemMessage('🔧 Recalculating message count...');
+    
+    const correctedCount = await recalculateMessageCount();
+    
+    if (correctedCount !== null) {
+        addSystemMessage(`✅ Message count fixed! You have ${correctedCount} conversation exchanges.`);
+        
+        // Refresh dashboard if it's open
+        const dashboard = document.getElementById('dashboard-container');
+        if (dashboard && dashboard.style.display !== 'none') {
+            setTimeout(() => {
+                loadDashboardData();
+            }, 500);
+        }
+    } else {
+        addSystemMessage('❌ Failed to fix message count. Please try again.');
     }
 }
 
