@@ -8,6 +8,19 @@ let autoSpeakEnabled = false;
 let slowModeEnabled = false;
 let pronunciationModeEnabled = false;
 
+// Language codes for speech recognition and synthesis
+const LANGUAGE_CODES = {
+    'Spanish': 'es-ES',
+    'French': 'fr-FR',
+    'German': 'de-DE',
+    'Italian': 'it-IT',
+    'Portuguese': 'pt-PT',
+    'Japanese': 'ja-JP',
+    'Korean': 'ko-KR',
+    'Chinese': 'zh-CN',
+    'English': 'en-US'
+};
+
 // Language tab variables
 let currentActiveLanguage = 'Spanish';
 let conversationHistoryByLanguage = {
@@ -366,25 +379,47 @@ window.sendMessage = async function() {
     originalSendMessage();
 };
 
-// GLOBAL Authentication Functions (accessible to HTML onclick)
-function signUp() {
+// Helper function for auth validation
+function validateAuthInput() {
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
   
   if (!email || !password) {
     document.getElementById('auth-error').textContent = 'Please fill in all fields';
-    return;
+    return null;
   }
 
   if (!window.auth) {
     document.getElementById('auth-error').textContent = 'Authentication service not ready. Please wait and try again.';
-    return;
+    return null;
   }
   
   // Clear any previous errors
   document.getElementById('auth-error').textContent = '';
+  return { email, password };
+}
+
+// Helper function for notification styling
+function getNotificationBaseStyles() {
+  return `
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 15px 20px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    z-index: 10000;
+  `;
+}
+
+// GLOBAL Authentication Functions (accessible to HTML onclick)
+function signUp() {
+  const credentials = validateAuthInput();
+  if (!credentials) return;
   
-  window.auth.createUserWithEmailAndPassword(email, password)
+  window.auth.createUserWithEmailAndPassword(credentials.email, credentials.password)
     .then((userCredential) => {
       console.log('✅ User signed up:', userCredential.user.email);
       showChatInterface();
@@ -396,23 +431,10 @@ function signUp() {
 }
 
 function signIn() {
-  const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
+  const credentials = validateAuthInput();
+  if (!credentials) return;
   
-  if (!email || !password) {
-    document.getElementById('auth-error').textContent = 'Please fill in all fields';
-    return;
-  }
-
-  if (!window.auth) {
-    document.getElementById('auth-error').textContent = 'Authentication service not ready. Please wait and try again.';
-    return;
-  }
-  
-  // Clear any previous errors
-  document.getElementById('auth-error').textContent = '';
-  
-  window.auth.signInWithEmailAndPassword(email, password)
+  window.auth.signInWithEmailAndPassword(credentials.email, credentials.password)
     .then((userCredential) => {
       console.log('✅ User signed in:', userCredential.user.email);
       showChatInterface();
@@ -527,7 +549,7 @@ function sendMessage() {
     });
 }
 
-function addMessage(message, sender) {
+function addMessage(message, sender, shouldAutoSpeak = true) {
     const chatMessages = document.getElementById('chat-messages');
     if (!chatMessages) {
         console.error('Chat messages container not found');
@@ -555,8 +577,8 @@ function addMessage(message, sender) {
     chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
     
-    // Auto-speak if enabled
-    if (sender === 'ai' && autoSpeakEnabled) {
+    // Auto-speak if enabled and allowed
+    if (sender === 'ai' && autoSpeakEnabled && shouldAutoSpeak) {
         const targetLanguage = currentActiveLanguage || 'Spanish';
         setTimeout(() => speakText(message, targetLanguage), 500);
     }
@@ -791,32 +813,8 @@ function saveCurrentConversationState() {
 
 // Display message without saving to Firestore (for loading existing messages)
 function displayMessage(message, sender) {
-    const chatMessages = document.getElementById('chat-messages');
-    if (!chatMessages) {
-        console.error('Chat messages container not found');
-        return;
-    }
-    
-    const messageDiv = document.createElement('div');
-    messageDiv.classList.add('message', sender);
-    
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
-    // Add buttons to messages
-    const messageHTML = `
-        <div class="message-content">
-            <div class="message-text">${message}</div>
-            <div class="message-actions">
-                <button class="message-speaker-btn" onclick="speakMessage('${message.replace(/'/g, "\\'")}', '${sender}')">🔊</button>
-                <button class="message-favorite-btn" onclick="favoriteMessage('${message.replace(/'/g, "\\'")}', '${sender}')">⭐</button>
-            </div>
-            <div class="message-time">${timestamp}</div>
-        </div>
-    `;
-    
-    messageDiv.innerHTML = messageHTML;
-    chatMessages.appendChild(messageDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    // Use addMessage with auto-speak disabled for loaded messages
+    addMessage(message, sender, false);
 }
 
 function loadConversationForLanguage(language) {
@@ -1421,17 +1419,7 @@ async function generateAndSaveSummary(language = null) {
       <span>Generating ${currentLang} conversation summary...</span>
     </div>
   `;
-  progressNotification.style.cssText = `
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 15px 20px;
-    border-radius: 10px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    z-index: 10000;
-  `;
+  progressNotification.style.cssText = getNotificationBaseStyles();
   document.body.appendChild(progressNotification);
   
   try {
@@ -1846,18 +1834,7 @@ function initSpeechRecognition() {
 function updateRecognitionLanguage() {
   if (!recognition) return;
   const targetLanguage = document.getElementById('targetLanguage')?.value || 'Spanish';
-  const langCodes = {
-    'Spanish': 'es-ES',
-    'French': 'fr-FR',
-    'German': 'de-DE',
-    'Italian': 'it-IT',
-    'Portuguese': 'pt-PT',
-    'Japanese': 'ja-JP',
-    'Korean': 'ko-KR',
-    'Chinese': 'zh-CN',
-    'English': 'en-US'
-  };
-  recognition.lang = langCodes[targetLanguage] || 'en-US';
+  recognition.lang = LANGUAGE_CODES[targetLanguage] || 'en-US';
   console.log('Recognition language set to:', recognition.lang);
 }
 
@@ -1923,18 +1900,7 @@ function speakText(text, language) {
   }
   
   const utterance = new SpeechSynthesisUtterance(text);
-  const langCodes = {
-    'Spanish': 'es-ES',
-    'French': 'fr-FR',
-    'German': 'de-DE',
-    'Italian': 'it-IT',
-    'Portuguese': 'pt-PT',
-    'Japanese': 'ja-JP',
-    'Korean': 'ko-KR',
-    'Chinese': 'zh-CN',
-    'English': 'en-US'
-  };
-  utterance.lang = langCodes[language] || 'en-US';
+  utterance.lang = LANGUAGE_CODES[language] || 'en-US';
   utterance.rate = slowModeEnabled ? 0.7 : 0.9;
   utterance.pitch = 1;
   utterance.volume = 1;
@@ -2100,16 +2066,7 @@ function showNotification(message) {
   const notification = document.createElement('div');
   notification.className = 'notification';
   notification.textContent = message;
-  notification.style.cssText = `
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 15px 20px;
-    border-radius: 10px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    z-index: 10000;
+  notification.style.cssText = getNotificationBaseStyles() + `
     animation: slideInRight 0.3s ease;
   `;
   document.body.appendChild(notification);
