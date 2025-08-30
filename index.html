@@ -1154,8 +1154,31 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
     
-    <!-- Configuration (your API keys) -->
-    <script src="config.js"></script>
+    <!-- Configuration (your API keys) - will be loaded dynamically -->
+    <script>
+        // Try to load config.js dynamically and handle gracefully if it doesn't exist
+        function loadConfigScript() {
+            return new Promise((resolve) => {
+                const script = document.createElement('script');
+                script.src = 'config.js';
+                script.onload = () => {
+                    console.log('✅ Configuration loaded successfully');
+                    resolve(true);
+                };
+                script.onerror = () => {
+                    console.log('ℹ️ No config.js found - this is normal for first-time setup');
+                    resolve(false);
+                };
+                document.head.appendChild(script);
+            });
+        }
+        
+        // Load config before initializing the app
+        loadConfigScript().then(() => {
+            // Config loading complete (whether successful or not)
+            // App initialization will handle missing config gracefully
+        });
+    </script>
     
     <!-- Main Application Script -->
     <script src="app.js"></script>

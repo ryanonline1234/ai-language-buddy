@@ -15,7 +15,8 @@ const MAX_INIT_RETRIES = 50; // 5 seconds total
 // Initialize Firebase when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
   console.log('🚀 DOM loaded, starting Firebase initialization...');
-  initializeApp();
+  // Small delay to allow config loading to complete
+  setTimeout(initializeApp, 50);
 });
 
 // ====== Firestore Initialization ======
@@ -23,6 +24,7 @@ let db;
 
 function initializeApp() {
   try {
+    console.log('🔍 Checking Firebase availability...');
     // Check if Firebase is loaded
     if (typeof firebase === 'undefined') {
       initRetryCount++;
@@ -36,13 +38,17 @@ function initializeApp() {
       return;
     }
 
+    console.log('✅ Firebase is available, checking configuration...');
     // Check if config is loaded
     if (typeof firebaseConfig === 'undefined' || typeof GEMINI_API_KEY === 'undefined') {
       console.warn('⚠️ Configuration not found. Entering setup mode...');
+      console.log('firebaseConfig defined:', typeof firebaseConfig !== 'undefined');
+      console.log('GEMINI_API_KEY defined:', typeof GEMINI_API_KEY !== 'undefined');
       showSetupMode();
       return;
     }
 
+    console.log('✅ Configuration found, validating values...');
     // Validate config values
     if (firebaseConfig.apiKey === 'YOUR_FIREBASE_API_KEY' || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
       console.warn('⚠️ Default configuration detected. Please update your API keys.');
