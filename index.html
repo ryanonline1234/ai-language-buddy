@@ -1072,6 +1072,12 @@
             align-items: center;
             justify-content: center;
             z-index: 10000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         .summary-modal {
@@ -1082,6 +1088,18 @@
             max-height: 80vh;
             overflow-y: auto;
             box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { 
+                opacity: 0;
+                transform: translateY(-50px) scale(0.95);
+            }
+            to { 
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
         }
 
         .summary-header {
@@ -1112,6 +1130,9 @@
             margin: 0 0 15px 0;
             color: #333;
             font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .takeaways-list, .recommendations-list {
@@ -1126,6 +1147,7 @@
             margin: 8px 0;
             border-radius: 10px;
             border-left: 4px solid #667eea;
+            line-height: 1.5;
         }
 
         .phrases-list {
@@ -1147,6 +1169,21 @@
             padding: 20px 25px;
             border-top: 1px solid #eee;
             text-align: center;
+        }
+
+        /* Spinner for loading states */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         /* Summaries Section Styles */
@@ -1209,6 +1246,33 @@
             color: #666;
         }
 
+        /* Weekly Summary Styles */
+        .weekly-overview, .weekly-languages, .weekly-takeaways, .weekly-recommendations {
+            margin-bottom: 25px;
+        }
+
+        .weekly-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .weekly-stat {
+            background: #f8f9fa;
+            padding: 12px 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .weekly-language-stat {
+            background: #f8f9fa;
+            padding: 10px 15px;
+            margin: 8px 0;
+            border-radius: 8px;
+            border-left: 4px solid #4facfe;
+        }
+
         @media (max-width: 768px) {
             .summary-modal {
                 width: 95%;
@@ -1217,6 +1281,10 @@
 
             .summary-header, .summary-content, .summary-actions {
                 padding: 20px;
+            }
+            
+            .weekly-stats {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -1475,7 +1543,10 @@
                 <div class="summaries-section">
                     <div class="section-header">
                         <h3>📚 Learning Summaries</h3>
-                        <button class="btn-small" onclick="generateAndSaveSummary()">📝 Generate New</button>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn-small" onclick="generateAndSaveSummary()">📝 Generate New</button>
+                            <button class="btn-small" onclick="generateWeeklySummary().then(report => report && showWeeklySummaryModal(report))">📅 Weekly Report</button>
+                        </div>
                     </div>
                     <div id="summaries-list" class="summaries-list">
                         <div class="empty-state">

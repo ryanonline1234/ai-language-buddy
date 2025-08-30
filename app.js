@@ -1367,11 +1367,31 @@ async function generateAndSaveSummary(language = null) {
   const messages = conversationHistoryByLanguage[currentLang] || [];
   
   if (messages.length < 2) {
-    console.log('Not enough messages to generate summary');
+    showNotification('❌ Need at least 2 messages to generate a summary');
     return null;
   }
 
-  showNotification('Generating conversation summary...');
+  // Show progress notification
+  const progressNotification = document.createElement('div');
+  progressNotification.className = 'notification progress-notification';
+  progressNotification.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div class="spinner"></div>
+      <span>Generating ${currentLang} conversation summary...</span>
+    </div>
+  `;
+  progressNotification.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 15px 20px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    z-index: 10000;
+  `;
+  document.body.appendChild(progressNotification);
   
   try {
     const targetLanguage = currentLang;
@@ -1379,18 +1399,22 @@ async function generateAndSaveSummary(language = null) {
     
     const summary = await generateConversationSummary(messages, targetLanguage, nativeLanguage);
     
+    // Remove progress notification
+    progressNotification.remove();
+    
     if (summary) {
       await saveConversationSummary(summary, currentLang, messages.length);
       showSummaryModal(summary, currentLang);
       showNotification('✅ Summary generated successfully!');
       return summary;
     } else {
-      showNotification('❌ Failed to generate summary');
+      showNotification('❌ Failed to generate summary. Please try again.');
       return null;
     }
   } catch (error) {
     console.error('Error in generateAndSaveSummary:', error);
-    showNotification('❌ Error generating summary');
+    progressNotification.remove();
+    showNotification('❌ Error generating summary. Please check your connection.');
     return null;
   }
 }
@@ -1550,6 +1574,149 @@ async function showSummaryDetails(summaryId) {
   }
 }
 
+// Generate weekly summary (foundation for future email feature)
+async function generateWeeklySummary() {
+  if (!db || !window.auth.currentUser) return null;
+  
+  try {
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    
+    // Get all summaries from the past week
+    const snapshot = await db.collection('users')
+      .doc(window.auth.currentUser.uid)
+      .collection('summaries')
+      .where('timestamp', '>=', oneWeekAgo)
+      .orderBy('timestamp', 'desc')
+      .get();
+
+    const weeklySummaries = [];
+    snapshot.forEach(doc => {
+      weeklySummaries.push(doc.data());
+    });
+
+    if (weeklySummaries.length === 0) {
+      return null;
+    }
+
+    // Aggregate data across all languages
+    const languageStats = {};
+    let totalMessages = 0;
+    const allTakeaways = [];
+    const allRecommendations = [];
+
+    weeklySummaries.forEach(summary => {
+      const lang = summary.language;
+      if (!languageStats[lang]) {
+        languageStats[lang] = { conversations: 0, messages: 0 };
+      }
+      languageStats[lang].conversations++;
+      languageStats[lang].messages += summary.messageCount || 0;
+      totalMessages += summary.messageCount || 0;
+      
+      if (summary.takeaways) {
+        allTakeaways.push(...summary.takeaways);
+      }
+      if (summary.recommendations) {
+        allRecommendations.push(...summary.recommendations);
+      }
+    });
+
+    const weeklyReport = {
+      weekStart: oneWeekAgo.toLocaleDateString(),
+      weekEnd: new Date().toLocaleDateString(),
+      totalConversations: weeklySummaries.length,
+      totalMessages: totalMessages,
+      languageStats: languageStats,
+      topTakeaways: allTakeaways.slice(0, 5), // Top 5 takeaways
+      topRecommendations: allRecommendations.slice(0, 3), // Top 3 recommendations
+      generatedAt: new Date()
+    };
+
+    // Save weekly summary
+    await db.collection('users')
+      .doc(window.auth.currentUser.uid)
+      .collection('weeklySummaries')
+      .add({
+        ...weeklyReport,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+    return weeklyReport;
+  } catch (error) {
+    console.error('Error generating weekly summary:', error);
+    return null;
+  }
+}
+
+// Show weekly summary modal (for testing)
+function showWeeklySummaryModal(weeklyReport) {
+  if (!weeklyReport) return;
+  
+  const languageStatsHTML = Object.entries(weeklyReport.languageStats)
+    .map(([lang, stats]) => `
+      <div class="weekly-language-stat">
+        <strong>${lang}:</strong> ${stats.conversations} conversations, ${stats.messages} messages
+      </div>
+    `).join('');
+
+  const modalHTML = `
+    <div id="weekly-summary-modal" class="summary-modal-overlay">
+      <div class="summary-modal">
+        <div class="summary-header">
+          <h3>📅 Weekly Learning Summary</h3>
+          <button class="btn-close" onclick="closeWeeklySummaryModal()">✖</button>
+        </div>
+        <div class="summary-content">
+          <div class="weekly-overview">
+            <h4>📊 Week Overview (${weeklyReport.weekStart} - ${weeklyReport.weekEnd})</h4>
+            <div class="weekly-stats">
+              <div class="weekly-stat">Total Conversations: <strong>${weeklyReport.totalConversations}</strong></div>
+              <div class="weekly-stat">Total Messages: <strong>${weeklyReport.totalMessages}</strong></div>
+            </div>
+          </div>
+          
+          <div class="weekly-languages">
+            <h4>🌍 Languages Practiced</h4>
+            ${languageStatsHTML}
+          </div>
+          
+          ${weeklyReport.topTakeaways.length > 0 ? `
+            <div class="weekly-takeaways">
+              <h4>🎯 Top Learnings This Week</h4>
+              <ul class="takeaways-list">
+                ${weeklyReport.topTakeaways.map(takeaway => `<li>${takeaway}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+          
+          ${weeklyReport.topRecommendations.length > 0 ? `
+            <div class="weekly-recommendations">
+              <h4>💡 Focus Areas for Next Week</h4>
+              <ul class="recommendations-list">
+                ${weeklyReport.topRecommendations.map(rec => `<li>${rec}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+        </div>
+        <div class="summary-actions">
+          <button class="btn btn-primary" onclick="closeWeeklySummaryModal()">Great Progress!</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+// Close weekly summary modal
+function closeWeeklySummaryModal() {
+  const modal = document.getElementById('weekly-summary-modal');
+  if (modal) {
+    modal.remove();
+  }
+}
+
 // Make functions globally accessible (required for HTML onclick handlers)
 window.signUp = signUp;
 window.signIn = signIn;
@@ -1565,6 +1732,8 @@ window.favoriteMessage = favoriteMessage;
 window.generateAndSaveSummary = generateAndSaveSummary;
 window.closeSummaryModal = closeSummaryModal;
 window.showSummaryDetails = showSummaryDetails;
+window.generateWeeklySummary = generateWeeklySummary;
+window.closeWeeklySummaryModal = closeWeeklySummaryModal;
 
 // ====== COMPLETE WEB SPEECH API IMPLEMENTATION ======
 

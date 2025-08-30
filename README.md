@@ -6,8 +6,10 @@ An AI-powered language learning chat application that helps users practice conve
 
 - 🔐 **Secure Authentication** - Firebase Auth for user accounts
 - 🤖 **AI-Powered Conversations** - Google Gemini API integration
+- 📚 **Smart Review Summaries** - AI generates key takeaways after each conversation
 - 🌐 **8 Languages Supported** - Spanish, French, German, Italian, Portuguese, Japanese, Korean, Chinese
 - 💬 **Real-time Chat Interface** - Modern, responsive design
+- 📊 **Learning Dashboard** - Track progress, view summaries, and achievements
 - 📱 **Mobile-Friendly** - Works seamlessly on all devices
 - 🎨 **Clean UI/UX** - Intuitive interface with typing indicators
 
@@ -22,6 +24,32 @@ Check out the live app: [Language Buddy on Netlify](https://ai-language-buddy.ne
 - **AI/ML:** Google Gemini 1.5 Flash API
 - **Hosting:** Netlify
 - **APIs:** Loaded via CDN (no local installation required)
+
+   📚 Smart Review Summaries
+
+The app now features intelligent conversation summaries powered by AI:
+
+**What it does:**
+- Analyzes your conversations and generates 3-5 key takeaways
+- Identifies new phrases you learned during the session
+- Points out grammar mistakes and provides quick explanations
+- Suggests areas for improvement and next steps
+- Creates beautiful visual summaries accessible from the dashboard
+
+**When summaries are generated:**
+- Automatically offered when clearing chat or signing out
+- On-demand via the "📚 Summary" button in the chat interface
+- Accessible anytime through the dashboard
+
+**Example takeaways:**
+- "Today you learned these phrases: 'comí' (I ate), 'ayer' (yesterday)"
+- "You struggled with past tense - remember that -er verbs end in -í for 'I'"
+- "Great job discussing food topics - you're building confidence in daily conversation"
+
+**Weekly summaries** (foundation for future email feature):
+- Aggregates learning progress across all languages
+- Shows total conversations and messages
+- Highlights top learnings and focus areas
 
    📦 Installation & Setup
 
