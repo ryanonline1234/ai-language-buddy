@@ -62,6 +62,7 @@ function initializeApp() {
         console.log('User authenticated:', user.email);
         createUserProfile(user);
         updateStreak();
+        initializeSidebar(); // Initialize sidebar
         setTimeout(() => {
           loadConversationHistory();
         }, 1000);
@@ -177,22 +178,20 @@ async function loadConversationHistory() {
             messagesByLanguage[language].push(data);
         });
         
-        // Load messages for each language tab
+        // Store conversation history by language but don't display yet
         Object.keys(messagesByLanguage).forEach(language => {
             if (conversationHistoryByLanguage[language]) {
-                // Display messages in reverse order (oldest first)
+                // Store messages in correct order (oldest first)
                 const messages = messagesByLanguage[language].reverse();
-                messages.forEach(msg => {
-                    addMessageToLanguageTab(msg.message, msg.sender, language);
-                });
-                
-                // Store in our conversation history
                 conversationHistoryByLanguage[language] = messages.map(msg => ({
                     message: msg.message,
                     sender: msg.sender
                 }));
             }
         });
+        
+        // Load conversation for the current active language
+        loadConversationForLanguage(currentActiveLanguage);
         
         console.log(`✅ Loaded conversation history for languages:`, Object.keys(messagesByLanguage));
     } catch (error) {
@@ -384,7 +383,7 @@ function signOut() {
   window.auth.signOut().then(() => {
     console.log('✅ User signed out');
     conversationHistory = []; // Clear conversation when signing out
-    const chatMessages = document.getElementById('chatMessages');
+    const chatMessages = document.getElementById('chat-messages');
     if (chatMessages) chatMessages.innerHTML = '';
     showAuthInterface();
   }).catch((error) => {
@@ -581,6 +580,12 @@ function changeLanguage() {
 }
 
 // ====== LANGUAGE SIDEBAR FUNCTIONS ======
+function initializeSidebar() {
+  // Set initial active language
+  selectLanguage(currentActiveLanguage);
+  console.log('🌍 Sidebar initialized with language:', currentActiveLanguage);
+}
+
 function selectLanguage(language) {
   // Save current conversation before switching
   saveCurrentConversationState();
@@ -600,7 +605,7 @@ function selectLanguage(language) {
   }
   
   // Update the learning language dropdown to match
-  const learningSelect = document.getElementById('learning-language');
+  const learningSelect = document.getElementById('targetLanguage');
   if (learningSelect) {
     learningSelect.value = language;
   }
@@ -1329,7 +1334,7 @@ function togglePronunciationMode() {
 // ====== ENHANCED MESSAGE FUNCTIONS ======
 
 window.addMessage = function(message, sender) {
-    const chatMessages = document.getElementById('chatMessages');
+    const chatMessages = document.getElementById('chat-messages');
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('message', sender);
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1407,7 +1412,7 @@ async function removeFavorite(favoriteId) {
 }
 
 function addSystemMessage(message) {
-  const chatMessages = document.getElementById('chatMessages');
+  const chatMessages = document.getElementById('chat-messages');
   const messageDiv = document.createElement('div');
   messageDiv.className = 'message system-message';
   messageDiv.innerHTML = `
