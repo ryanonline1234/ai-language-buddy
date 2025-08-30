@@ -1059,6 +1059,166 @@
                 min-width: 120px;
             }
         }
+
+        /* Summary Modal Styles */
+        .summary-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .summary-modal {
+            background: white;
+            border-radius: 20px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 25px;
+            border-bottom: 1px solid #eee;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px 20px 0 0;
+        }
+
+        .summary-header h3 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .summary-content {
+            padding: 25px;
+        }
+
+        .takeaways-section, .phrases-section, .recommendations-section {
+            margin-bottom: 25px;
+        }
+
+        .takeaways-section h4, .phrases-section h4, .recommendations-section h4 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 1.2rem;
+        }
+
+        .takeaways-list, .recommendations-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .takeaways-list li, .recommendations-list li {
+            background: #f8f9fa;
+            padding: 12px 15px;
+            margin: 8px 0;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .phrases-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .phrase-tag {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .summary-actions {
+            padding: 20px 25px;
+            border-top: 1px solid #eee;
+            text-align: center;
+        }
+
+        /* Summaries Section Styles */
+        .summaries-section {
+            padding: 20px;
+            margin: 20px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .summaries-list {
+            margin-top: 15px;
+        }
+
+        .summary-item {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .summary-item:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .summary-item-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .summary-language {
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .summary-date {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .summary-preview {
+            color: #333;
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+
+        .summary-stats {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .summary-modal {
+                width: 95%;
+                max-height: 90vh;
+            }
+
+            .summary-header, .summary-content, .summary-actions {
+                padding: 20px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1158,6 +1318,7 @@
                 </div>
                 <div class="chat-controls">
                     <button class="btn-small dashboard-btn" onclick="openDashboard()">📊 Dashboard</button>
+                    <button class="btn-small" onclick="generateAndSaveSummary()">📚 Summary</button>
                     <button class="btn-small" onclick="clearChat()">Clear Chat</button>
                     <button class="btn-small" onclick="fixMessageCount()">🔧 Fix Count</button>
                     <button class="btn-small" onclick="signOut()">Sign Out</button>
@@ -1307,6 +1468,18 @@
                     <div id="favorites-list" class="favorites-list">
                         <div class="empty-state">
                             <p>No saved phrases yet. Click the ⭐ on any message to save it!</p>
+                        </div>
+                    </div>
+                </div>
+                <!-- Learning Summaries Section -->
+                <div class="summaries-section">
+                    <div class="section-header">
+                        <h3>📚 Learning Summaries</h3>
+                        <button class="btn-small" onclick="generateAndSaveSummary()">📝 Generate New</button>
+                    </div>
+                    <div id="summaries-list" class="summaries-list">
+                        <div class="empty-state">
+                            <p>No summaries yet. Complete a conversation and generate your first summary!</p>
                         </div>
                     </div>
                 </div>

@@ -423,10 +423,27 @@ function signIn() {
     });
 }
 
-function signOut() {
+async function signOut() {
   if (!window.auth) {
     alert('Authentication service not ready. Please wait and try again.');
     return;
+  }
+  
+  // Check if there are conversations to summarize before signing out
+  const languagesWithMessages = Object.keys(conversationHistoryByLanguage).filter(
+    lang => conversationHistoryByLanguage[lang] && conversationHistoryByLanguage[lang].length >= 4
+  );
+  
+  if (languagesWithMessages.length > 0) {
+    const generateSummary = confirm(
+      `📚 You have active conversations in ${languagesWithMessages.join(', ')}.\n\nWould you like to generate learning summaries before signing out?`
+    );
+    
+    if (generateSummary) {
+      for (const language of languagesWithMessages) {
+        await generateAndSaveSummary(language);
+      }
+    }
   }
   
   window.auth.signOut().then(() => {
@@ -594,6 +611,20 @@ function showAuthInterface() {
 }
 
 async function clearChat() {
+  // Generate summary before clearing if there are enough messages
+  const currentMessages = conversationHistoryByLanguage[currentActiveLanguage] || [];
+  let shouldGenerateSummary = currentMessages.length >= 4; // At least 2 exchanges
+  
+  if (shouldGenerateSummary) {
+    const generateSummary = confirm(
+      `📚 You have ${currentMessages.length} messages in this ${currentActiveLanguage} conversation.\n\nWould you like to generate a learning summary before clearing?`
+    );
+    
+    if (generateSummary) {
+      await generateAndSaveSummary(currentActiveLanguage);
+    }
+  }
+
   // Show confirmation dialog since this is permanent
   const confirmClear = confirm(
     `⚠️ Are you sure you want to permanently delete all ${currentActiveLanguage} conversation messages?\n\nThis action cannot be undone.`
@@ -772,6 +803,7 @@ function openDashboard() {
   loadFavorites();
   loadLanguageStats();
   loadActivityChart();
+  loadSummariesList();
 }
 
 function closeDashboard() {
@@ -1197,6 +1229,327 @@ Now respond to their latest message naturally and helpfully:`;
   }
 }
 
+// ====== SMART REVIEW SUMMARIES FEATURE ======
+
+// Generate AI-powered conversation summary
+async function generateConversationSummary(messages, targetLanguage, nativeLanguage) {
+  try {
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
+      console.warn('Gemini API key not configured for summary generation');
+      return null;
+    }
+
+    if (!messages || messages.length < 2) {
+      console.log('Not enough messages for summary generation');
+      return null;
+    }
+
+    // Build conversation text for analysis
+    let conversationText = '';
+    messages.forEach(msg => {
+      const speaker = msg.sender === 'user' ? 'Student' : 'AI Tutor';
+      conversationText += `${speaker}: ${msg.message}\n`;
+    });
+
+    const summaryPrompt = `Analyze this ${targetLanguage} language learning conversation and provide 3-5 key takeaways in ${nativeLanguage}. Focus on:
+
+1. New phrases or vocabulary the student learned
+2. Grammar mistakes and areas for improvement  
+3. Topics discussed and conversation themes
+4. Student's progress and achievements
+5. Specific recommendations for continued learning
+
+Conversation:
+${conversationText}
+
+Provide your response as a JSON object with this structure:
+{
+  "takeaways": [
+    "Today you learned these phrases: [list specific phrases]",
+    "You struggled with [grammar point] - here's a quick guide: [brief explanation]", 
+    "Great job discussing [topic] - you're building confidence in [area]",
+    "Recommendation: Practice [specific skill] next time"
+  ],
+  "newPhrases": ["phrase1", "phrase2"],
+  "grammarPoints": ["point1", "point2"],
+  "topics": ["topic1", "topic2"],
+  "recommendations": ["recommendation1", "recommendation2"]
+}`;
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: summaryPrompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 500
+        }
+      })
+    });
+
+    if (!response.ok) {
+      console.error('Failed to generate summary:', response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+    const summaryText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!summaryText) {
+      console.error('No summary text received from API');
+      return null;
+    }
+
+    // Try to parse JSON response
+    try {
+      const jsonMatch = summaryText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+    } catch (parseError) {
+      console.warn('Failed to parse JSON summary, using fallback format');
+    }
+
+    // Fallback: create simple takeaways from text
+    const takeaways = summaryText.split('\n').filter(line => line.trim().length > 0).slice(0, 5);
+    return {
+      takeaways,
+      newPhrases: [],
+      grammarPoints: [],
+      topics: [],
+      recommendations: []
+    };
+
+  } catch (error) {
+    console.error('Error generating conversation summary:', error);
+    return null;
+  }
+}
+
+// Save conversation summary to Firestore
+async function saveConversationSummary(summary, language, messageCount) {
+  if (!db || !window.auth.currentUser || !summary) return;
+  
+  try {
+    const summaryData = {
+      ...summary,
+      language: language,
+      messageCount: messageCount,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      userId: window.auth.currentUser.uid
+    };
+
+    await db.collection('users')
+      .doc(window.auth.currentUser.uid)
+      .collection('summaries')
+      .add(summaryData);
+
+    console.log('✅ Conversation summary saved');
+    return true;
+  } catch (error) {
+    console.error('Error saving summary:', error);
+    return false;
+  }
+}
+
+// Generate and save summary for current conversation
+async function generateAndSaveSummary(language = null) {
+  const currentLang = language || currentActiveLanguage;
+  const messages = conversationHistoryByLanguage[currentLang] || [];
+  
+  if (messages.length < 2) {
+    console.log('Not enough messages to generate summary');
+    return null;
+  }
+
+  showNotification('Generating conversation summary...');
+  
+  try {
+    const targetLanguage = currentLang;
+    const nativeLanguage = document.getElementById('nativeLanguage')?.value || 'English';
+    
+    const summary = await generateConversationSummary(messages, targetLanguage, nativeLanguage);
+    
+    if (summary) {
+      await saveConversationSummary(summary, currentLang, messages.length);
+      showSummaryModal(summary, currentLang);
+      showNotification('✅ Summary generated successfully!');
+      return summary;
+    } else {
+      showNotification('❌ Failed to generate summary');
+      return null;
+    }
+  } catch (error) {
+    console.error('Error in generateAndSaveSummary:', error);
+    showNotification('❌ Error generating summary');
+    return null;
+  }
+}
+
+// Show summary in a modal popup
+function showSummaryModal(summary, language) {
+  // Create modal HTML
+  const modalHTML = `
+    <div id="summary-modal" class="summary-modal-overlay">
+      <div class="summary-modal">
+        <div class="summary-header">
+          <h3>📚 ${language} Conversation Summary</h3>
+          <button class="btn-close" onclick="closeSummaryModal()">✖</button>
+        </div>
+        <div class="summary-content">
+          <div class="takeaways-section">
+            <h4>🎯 Key Takeaways</h4>
+            <ul class="takeaways-list">
+              ${summary.takeaways.map(takeaway => `<li>${takeaway}</li>`).join('')}
+            </ul>
+          </div>
+          ${summary.newPhrases && summary.newPhrases.length > 0 ? `
+            <div class="phrases-section">
+              <h4>✨ New Phrases</h4>
+              <div class="phrases-list">
+                ${summary.newPhrases.map(phrase => `<span class="phrase-tag">${phrase}</span>`).join('')}
+              </div>
+            </div>
+          ` : ''}
+          ${summary.recommendations && summary.recommendations.length > 0 ? `
+            <div class="recommendations-section">
+              <h4>💡 Recommendations</h4>
+              <ul class="recommendations-list">
+                ${summary.recommendations.map(rec => `<li>${rec}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+        </div>
+        <div class="summary-actions">
+          <button class="btn btn-primary" onclick="closeSummaryModal()">Got it!</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Remove existing modal if any
+  const existingModal = document.getElementById('summary-modal');
+  if (existingModal) {
+    existingModal.remove();
+  }
+
+  // Add modal to DOM
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+// Close summary modal
+function closeSummaryModal() {
+  const modal = document.getElementById('summary-modal');
+  if (modal) {
+    modal.remove();
+  }
+}
+
+// Load recent summaries for dashboard
+async function loadRecentSummaries() {
+  if (!db || !window.auth.currentUser) return [];
+  
+  try {
+    const snapshot = await db.collection('users')
+      .doc(window.auth.currentUser.uid)
+      .collection('summaries')
+      .orderBy('timestamp', 'desc')
+      .limit(5)
+      .get();
+
+    const summaries = [];
+    snapshot.forEach(doc => {
+      summaries.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+
+    return summaries;
+  } catch (error) {
+    console.error('Error loading summaries:', error);
+    return [];
+  }
+}
+
+// Load and display summaries in dashboard
+async function loadSummariesList() {
+  const summariesContainer = document.getElementById('summaries-list');
+  if (!summariesContainer) return;
+
+  try {
+    const summaries = await loadRecentSummaries();
+    
+    if (summaries.length === 0) {
+      summariesContainer.innerHTML = `
+        <div class="empty-state">
+          <p>No summaries yet. Complete a conversation and generate your first summary!</p>
+        </div>
+      `;
+      return;
+    }
+
+    let summariesHTML = '';
+    summaries.forEach(summary => {
+      const date = summary.timestamp ? summary.timestamp.toDate().toLocaleDateString() : 'Unknown date';
+      const preview = summary.takeaways && summary.takeaways.length > 0 ? summary.takeaways[0].substring(0, 80) + '...' : 'No preview available';
+      
+      summariesHTML += `
+        <div class="summary-item" onclick="showSummaryDetails('${summary.id}')">
+          <div class="summary-item-header">
+            <span class="summary-language">${summary.language || 'Unknown'}</span>
+            <span class="summary-date">${date}</span>
+          </div>
+          <div class="summary-preview">${preview}</div>
+          <div class="summary-stats">
+            <span>📝 ${summary.takeaways ? summary.takeaways.length : 0} takeaways</span>
+            <span>💬 ${summary.messageCount || 0} messages</span>
+          </div>
+        </div>
+      `;
+    });
+
+    summariesContainer.innerHTML = summariesHTML;
+  } catch (error) {
+    console.error('Error loading summaries list:', error);
+    summariesContainer.innerHTML = `
+      <div class="empty-state">
+        <p>Error loading summaries. Please try again.</p>
+      </div>
+    `;
+  }
+}
+
+// Show summary details in modal
+async function showSummaryDetails(summaryId) {
+  if (!db || !window.auth.currentUser) return;
+  
+  try {
+    const doc = await db.collection('users')
+      .doc(window.auth.currentUser.uid)
+      .collection('summaries')
+      .doc(summaryId)
+      .get();
+
+    if (doc.exists) {
+      const summary = doc.data();
+      showSummaryModal(summary, summary.language);
+    }
+  } catch (error) {
+    console.error('Error loading summary details:', error);
+    showNotification('❌ Error loading summary details');
+  }
+}
+
 // Make functions globally accessible (required for HTML onclick handlers)
 window.signUp = signUp;
 window.signIn = signIn;
@@ -1209,6 +1562,9 @@ window.openDashboard = openDashboard;
 window.closeDashboard = closeDashboard;
 window.speakMessage = speakMessage;
 window.favoriteMessage = favoriteMessage;
+window.generateAndSaveSummary = generateAndSaveSummary;
+window.closeSummaryModal = closeSummaryModal;
+window.showSummaryDetails = showSummaryDetails;
 
 // ====== COMPLETE WEB SPEECH API IMPLEMENTATION ======
 
