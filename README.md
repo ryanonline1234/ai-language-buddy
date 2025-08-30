@@ -13,7 +13,7 @@ An AI-powered language learning chat application that helps users practice conve
 
    🚀 Live Demo
 
-Check out the live app: [Language Buddy on Netlify](https://your-app-name.netlify.app)
+Check out the live app: [Language Buddy on Netlify](https://ai-language-buddy.netlify.app)
 
    🛠️ Technologies Used
 
