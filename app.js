@@ -572,61 +572,54 @@ function changeLanguage() {
   openLanguageTab(targetLanguage);
 }
 
-// ====== LANGUAGE TAB FUNCTIONS ======
-function openLanguageTab(language) {
-  // Save current conversation to the previous language
+// ====== LANGUAGE SIDEBAR FUNCTIONS ======
+function selectLanguage(language) {
+  // Save current conversation before switching
   saveCurrentConversationState();
   
-  // Hide all tab content
-  const tabContents = document.querySelectorAll('.tab-content');
-  tabContents.forEach(tab => {
-    tab.style.display = 'none';
-    tab.classList.remove('active');
+  // Update active language
+  currentActiveLanguage = language;
+  
+  // Update sidebar visual state
+  const languageItems = document.querySelectorAll('.language-item');
+  languageItems.forEach(item => {
+    item.classList.remove('active');
   });
   
-  // Remove active class from all tabs
-  const tabs = document.querySelectorAll('.language-tab');
-  tabs.forEach(tab => {
-    tab.classList.remove('active');
-  });
-  
-  // Show selected tab content and mark tab as active
-  const selectedContent = document.getElementById(language);
-  const selectedTab = document.querySelector(`[data-language="${language}"]`);
-  
-  if (selectedContent && selectedTab) {
-    selectedContent.style.display = 'block';
-    selectedContent.classList.add('active');
-    selectedTab.classList.add('active');
-    
-    // Update the current active language
-    currentActiveLanguage = language;
-    
-    // Update the dropdown to match
-    const targetLanguageSelect = document.getElementById('targetLanguage');
-    if (targetLanguageSelect) {
-      targetLanguageSelect.value = language;
-    }
-    
-    // Load conversation for this language
-    loadConversationForLanguage(language);
-    
-    // Update speech recognition language if available
-    if (typeof updateRecognitionLanguage === 'function') {
-      updateRecognitionLanguage();
-    }
-    
-    console.log('Switched to language tab:', language);
+  const selectedItem = document.querySelector(`[data-language="${language}"]`);
+  if (selectedItem) {
+    selectedItem.classList.add('active');
   }
+  
+  // Update the learning language dropdown to match
+  const learningSelect = document.getElementById('learning-language');
+  if (learningSelect) {
+    learningSelect.value = language;
+  }
+  
+  // Clear and load conversation for this language
+  loadConversationForLanguage(language);
+  
+  // Update speech recognition language if available
+  if (typeof updateRecognitionLanguage === 'function') {
+    updateRecognitionLanguage();
+  }
+  
+  console.log(`🌍 Switched to ${language}`);
+}
+
+// Legacy function for compatibility
+function openLanguageTab(language) {
+  selectLanguage(language);
 }
 
 function saveCurrentConversationState() {
   // Save the current conversation to the appropriate language array
   if (currentActiveLanguage && conversationHistoryByLanguage[currentActiveLanguage]) {
-    // Get all messages from the current active chat container
-    const currentChatContainer = document.getElementById(currentActiveLanguage);
-    if (currentChatContainer) {
-      const messages = currentChatContainer.querySelectorAll('.message');
+    // Get all messages from the current chat container
+    const chatContainer = document.getElementById('chat-messages');
+    if (chatContainer) {
+      const messages = chatContainer.querySelectorAll('.message');
       conversationHistoryByLanguage[currentActiveLanguage] = Array.from(messages).map(msg => {
         const messageText = msg.querySelector('.message-text')?.textContent || '';
         const sender = msg.classList.contains('user') ? 'user' : 'ai';
@@ -637,7 +630,7 @@ function saveCurrentConversationState() {
 }
 
 function loadConversationForLanguage(language) {
-  const chatContainer = document.getElementById(language);
+  const chatContainer = document.getElementById('chat-messages');
   if (!chatContainer) return;
   
   // Clear the chat container
@@ -646,7 +639,7 @@ function loadConversationForLanguage(language) {
   // Load messages for this language from the stored conversation history
   if (conversationHistoryByLanguage[language] && conversationHistoryByLanguage[language].length > 0) {
     conversationHistoryByLanguage[language].forEach(msgData => {
-      addMessageToLanguageTab(msgData.message, msgData.sender, language);
+      addMessage(msgData.message, msgData.sender);
     });
   }
 }
