@@ -785,6 +785,28 @@
             background: white;
             color: #4facfe;
         }
+        .dashboard-header-buttons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .dashboard-header-buttons .btn-small {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid white;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .dashboard-header-buttons .btn-small:hover {
+            background: white;
+            color: #4facfe;
+        }
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1388,7 +1410,6 @@
                     <button class="btn-small dashboard-btn" onclick="openDashboard()">📊 Dashboard</button>
                     <button class="btn-small" onclick="generateAndSaveSummary()">📚 Summary</button>
                     <button class="btn-small" onclick="clearChat()">Clear Chat</button>
-                    <button class="btn-small" onclick="fixMessageCount()">🔧 Fix Count</button>
                     <button class="btn-small" onclick="signOut()">Sign Out</button>
                 </div>
             </div>
@@ -1433,7 +1454,10 @@
                         <h2>📊 Learning Dashboard</h2>
                         <p class="dashboard-subtitle">Track your language learning journey</p>
                     </div>
-                    <button class="btn-close" onclick="closeDashboard()">✖</button>
+                    <div class="dashboard-header-buttons">
+                        <button class="btn-small" onclick="fixMessageCount()" title="Fix message count if statistics seem incorrect">🔧 Fix Count</button>
+                        <button class="btn-close" onclick="closeDashboard()">✖</button>
+                    </div>
                 </div>
                 <!-- User Profile Section -->
                 <div class="user-profile-section">
