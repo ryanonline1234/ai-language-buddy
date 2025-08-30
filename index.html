@@ -184,6 +184,65 @@
             background: rgba(255,255,255,0.2);
         }
 
+        /* Language Tabs Styles */
+        .language-tabs {
+            display: flex;
+            background: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .language-tabs::-webkit-scrollbar {
+            display: none;
+        }
+
+        .language-tab {
+            flex-shrink: 0;
+            padding: 12px 20px;
+            border: none;
+            background: #f8f9fa;
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+            position: relative;
+        }
+
+        .language-tab:hover {
+            background: #e9ecef;
+            color: #333;
+        }
+
+        .language-tab.active {
+            background: white;
+            color: #4facfe;
+            border-bottom-color: #4facfe;
+            font-weight: 600;
+        }
+
+        .language-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        /* Tab Content Styles */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
         .chat-messages {
             flex: 1;
             padding: 20px;
@@ -993,8 +1052,59 @@
                     <button class="btn-small" onclick="signOut()">Sign Out</button>
                 </div>
             </div>
-            <div id="chatMessages" class="chat-messages">
-                <!-- Messages will appear here -->
+            
+            <!-- Language Tabs -->
+            <div class="language-tabs">
+                <button class="language-tab active" data-language="Spanish" onclick="openLanguageTab('Spanish')">
+                    🇪🇸 Spanish
+                </button>
+                <button class="language-tab" data-language="French" onclick="openLanguageTab('French')">
+                    🇫🇷 French
+                </button>
+                <button class="language-tab" data-language="German" onclick="openLanguageTab('German')">
+                    🇩🇪 German
+                </button>
+                <button class="language-tab" data-language="Italian" onclick="openLanguageTab('Italian')">
+                    🇮🇹 Italian
+                </button>
+                <button class="language-tab" data-language="Portuguese" onclick="openLanguageTab('Portuguese')">
+                    🇵🇹 Portuguese
+                </button>
+                <button class="language-tab" data-language="Japanese" onclick="openLanguageTab('Japanese')">
+                    🇯🇵 Japanese
+                </button>
+                <button class="language-tab" data-language="Korean" onclick="openLanguageTab('Korean')">
+                    🇰🇷 Korean
+                </button>
+                <button class="language-tab" data-language="Chinese" onclick="openLanguageTab('Chinese')">
+                    🇨🇳 Chinese
+                </button>
+            </div>
+            
+            <!-- Chat Messages Containers for each language -->
+            <div id="Spanish" class="chat-messages tab-content active">
+                <!-- Spanish messages will appear here -->
+            </div>
+            <div id="French" class="chat-messages tab-content" style="display:none;">
+                <!-- French messages will appear here -->
+            </div>
+            <div id="German" class="chat-messages tab-content" style="display:none;">
+                <!-- German messages will appear here -->
+            </div>
+            <div id="Italian" class="chat-messages tab-content" style="display:none;">
+                <!-- Italian messages will appear here -->
+            </div>
+            <div id="Portuguese" class="chat-messages tab-content" style="display:none;">
+                <!-- Portuguese messages will appear here -->
+            </div>
+            <div id="Japanese" class="chat-messages tab-content" style="display:none;">
+                <!-- Japanese messages will appear here -->
+            </div>
+            <div id="Korean" class="chat-messages tab-content" style="display:none;">
+                <!-- Korean messages will appear here -->
+            </div>
+            <div id="Chinese" class="chat-messages tab-content" style="display:none;">
+                <!-- Chinese messages will appear here -->
             </div>
             <!-- ====== ENHANCED CHAT INPUT WITH VOICE FEATURES ====== -->
             <div class="chat-input">
