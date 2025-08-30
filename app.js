@@ -1084,7 +1084,15 @@ function speakText(text, language) {
     console.log('Text-to-speech not supported');
     return;
   }
-  window.speechSynthesis.cancel();
+  
+  // Wait for any pending speech to complete before starting new one
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+    // Small delay to ensure cancellation completes
+    setTimeout(() => speakText(text, language), 100);
+    return;
+  }
+  
   const utterance = new SpeechSynthesisUtterance(text);
   const langCodes = {
     'Spanish': 'es-ES',
@@ -1110,8 +1118,11 @@ function speakText(text, language) {
     updateVoiceStatus('');
   };
   utterance.onerror = (event) => {
-    console.error('Speech synthesis error:', event);
-    updateVoiceStatus('Speech error');
+    // Only log non-interruption errors to reduce console spam
+    if (event.error !== 'interrupted') {
+      console.error('Speech synthesis error:', event.error);
+    }
+    updateVoiceStatus('');
   };
   window.speechSynthesis.speak(utterance);
 }
