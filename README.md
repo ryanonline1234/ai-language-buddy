@@ -10,10 +10,15 @@ An AI-powered language learning chat application that helps users practice conve
 - 💬 **Real-time Chat Interface** - Modern, responsive design
 - 📱 **Mobile-Friendly** - Works seamlessly on all devices
 - 🎨 **Clean UI/UX** - Intuitive interface with typing indicators
+- 🎤 **Voice Features** - Speech recognition and text-to-speech
+- 📊 **Learning Dashboard** - Track progress and achievements
+- ⭐ **Favorite Phrases** - Save and export useful expressions
 
    🚀 Live Demo
 
 Check out the live app: [Language Buddy on Netlify](https://your-app-name.netlify.app)
+
+> **Note**: When you first deploy, the app will show a setup screen with instructions for configuring your API keys. See our [Deployment Guide](DEPLOYMENT.md) for detailed setup instructions.
 
    🛠️ Technologies Used
 
@@ -23,52 +28,46 @@ Check out the live app: [Language Buddy on Netlify](https://your-app-name.netlif
 - **Hosting:** Netlify
 - **APIs:** Loaded via CDN (no local installation required)
 
-   📦 Installation & Setup
+   📦 Quick Start
+
+> **🚀 Need help with deployment?** Check out our detailed [Deployment Guide](DEPLOYMENT.md) for step-by-step instructions and troubleshooting.
 
     Prerequisites
 - A modern web browser
-- Firebase account
-- Google AI Studio account for Gemini API
-- Netlify account (for deployment)
+- Firebase account ([Sign up free](https://console.firebase.google.com))
+- Google AI Studio account for Gemini API ([Get API key](https://makersuite.google.com/app/apikey))
+- Netlify account for hosting ([Sign up free](https://netlify.com))
 
-    Step 1: Clone the Repository
-```bash
-git clone https://github.com/yourusername/language-buddy-ai.git
-cd language-buddy-ai
-```
+    Quick Setup
+1. **Fork/Clone** this repository
+2. **Create config.js** with your API keys (see template below)
+3. **Deploy to Netlify** (drag & drop method recommended)
+4. **Configure domains** in Firebase and Gemini API settings
 
-    Step 2: Set Up Firebase
-1. Create a project in [Firebase Console](https://console.firebase.google.com)
-2. Enable Email/Password authentication
-3. Add your domain to authorized domains
-4. Copy your Firebase configuration
-
-    Step 3: Set Up Google Gemini API
-1. Get an API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Add HTTP referrer restrictions for your domain
-
-    Step 4: Configure the Application
-1. Open `app.js`
-2. Replace the Firebase config object with your own:
+    Configuration Template
+Create a `config.js` file in your project root:
 ```javascript
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+    apiKey: "your-firebase-api-key",
+    authDomain: "your-project.firebaseapp.com",
+    projectId: "your-project-id",
+    storageBucket: "your-project.appspot.com",
+    messagingSenderId: "your-sender-id",
+    appId: "your-app-id"
 };
-```
-3. Replace the Gemini API key:
-```javascript
-const GEMINI_API_KEY = 'YOUR_GEMINI_API_KEY';
+
+const GEMINI_API_KEY = 'your-gemini-api-key';
 ```
 
-    Step 5: Deploy
-1. Drag and drop files to [Netlify](https://netlify.com)
-2. Add your Netlify domain to Firebase authorized domains
-3. Update Gemini API restrictions to include your Netlify domain
+> **Important**: Replace the placeholder values with your actual API keys. The app will automatically detect missing configuration and show setup instructions.
+
+   ⚠️ Troubleshooting Deployment Issues
+
+If you see a "Setup Required" screen after deployment:
+1. ✅ Verify `config.js` exists in your project root
+2. ✅ Check that API keys are real values (not placeholders)
+3. ✅ Ensure Firebase/Gemini domains are configured correctly
+4. ✅ See our [Deployment Guide](DEPLOYMENT.md) for detailed troubleshooting
 
    🔒 Security Notes
 

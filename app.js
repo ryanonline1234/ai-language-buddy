@@ -8,6 +8,10 @@ let autoSpeakEnabled = false;
 let slowModeEnabled = false;
 let pronunciationModeEnabled = false;
 
+// Initialization tracking
+let initRetryCount = 0;
+const MAX_INIT_RETRIES = 50; // 5 seconds total
+
 // Initialize Firebase when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
   console.log('🚀 DOM loaded, starting Firebase initialization...');
@@ -21,14 +25,28 @@ function initializeApp() {
   try {
     // Check if Firebase is loaded
     if (typeof firebase === 'undefined') {
-      console.log('Waiting for Firebase to load...');
+      initRetryCount++;
+      if (initRetryCount >= MAX_INIT_RETRIES) {
+        console.warn('⚠️ Firebase failed to load after timeout. Entering setup mode...');
+        showSetupMode();
+        return;
+      }
+      console.log(`Waiting for Firebase to load... (${initRetryCount}/${MAX_INIT_RETRIES})`);
       setTimeout(initializeApp, 100);
       return;
     }
 
     // Check if config is loaded
-    if (typeof firebaseConfig === 'undefined') {
-      console.error('Config not loaded. Make sure config.js is included before app.js');
+    if (typeof firebaseConfig === 'undefined' || typeof GEMINI_API_KEY === 'undefined') {
+      console.warn('⚠️ Configuration not found. Entering setup mode...');
+      showSetupMode();
+      return;
+    }
+
+    // Validate config values
+    if (firebaseConfig.apiKey === 'YOUR_FIREBASE_API_KEY' || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
+      console.warn('⚠️ Default configuration detected. Please update your API keys.');
+      showSetupMode();
       return;
     }
 
@@ -63,7 +81,7 @@ function initializeApp() {
 
   } catch (error) {
     console.error('❌ Firebase initialization error:', error);
-    document.getElementById('auth-error').textContent = 'Firebase initialization failed. Please refresh the page.';
+    showSetupMode();
   }
 }
 
@@ -1407,3 +1425,106 @@ if (typeof window !== 'undefined') {
   window.toggleAutoSpeak = toggleAutoSpeak;
   window.toggleSlowMode = toggleSlowMode;
 }
+
+// ====== SETUP MODE FOR DEPLOYMENT ======
+function showSetupMode() {
+  console.log('🔧 Entering setup mode...');
+  
+  // Hide auth container and chat container
+  const authContainer = document.getElementById('auth-container');
+  const chatContainer = document.getElementById('chat-container');
+  const dashboardContainer = document.getElementById('dashboard-container');
+  
+  if (authContainer) authContainer.style.display = 'none';
+  if (chatContainer) chatContainer.style.display = 'none';
+  if (dashboardContainer) dashboardContainer.style.display = 'none';
+  
+  // Create setup interface
+  const setupHTML = `
+    <div id="setup-container" style="padding: 40px; text-align: center; background: #f8f9fa;">
+      <div style="max-width: 600px; margin: 0 auto; background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
+        <div style="font-size: 3rem; margin-bottom: 20px;">⚙️</div>
+        <h2 style="color: #333; margin-bottom: 20px;">Setup Required</h2>
+        <p style="color: #666; margin-bottom: 30px; line-height: 1.6;">
+          Welcome to AI Language Buddy! To get started, you need to configure your API keys.
+        </p>
+        
+        <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 10px; padding: 20px; margin-bottom: 30px; text-align: left;">
+          <h3 style="color: #856404; margin: 0 0 15px 0;">📋 Setup Instructions:</h3>
+          <ol style="color: #856404; margin: 0; padding-left: 20px;">
+            <li style="margin-bottom: 10px;">Create a <strong>config.js</strong> file in your project root</li>
+            <li style="margin-bottom: 10px;">Get your Firebase config from <a href="https://console.firebase.google.com" target="_blank" style="color: #4facfe;">Firebase Console</a></li>
+            <li style="margin-bottom: 10px;">Get your Gemini API key from <a href="https://makersuite.google.com/app/apikey" target="_blank" style="color: #4facfe;">Google AI Studio</a></li>
+            <li style="margin-bottom: 10px;">Copy the template below and update with your keys</li>
+          </ol>
+        </div>
+        
+        <div style="background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 20px; text-align: left;">
+          <h4 style="margin: 0 0 15px 0; color: #333;">config.js template:</h4>
+          <pre style="background: #2d3748; color: #e2e8f0; padding: 15px; border-radius: 8px; overflow-x: auto; font-size: 14px; margin: 0;">const firebaseConfig = {
+    apiKey: "your-firebase-api-key",
+    authDomain: "your-project.firebaseapp.com",
+    projectId: "your-project-id",
+    storageBucket: "your-project.appspot.com",
+    messagingSenderId: "your-sender-id",
+    appId: "your-app-id"
+};
+
+const GEMINI_API_KEY = 'your-gemini-api-key';</pre>
+        </div>
+        
+        <div style="background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 10px; padding: 15px; margin-bottom: 20px;">
+          <p style="margin: 0; color: #0c5460; font-size: 14px;">
+            <strong>💡 Tip:</strong> Both Firebase and Gemini API offer free tiers that are perfect for learning projects!
+          </p>
+        </div>
+        
+        <div style="background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 10px; padding: 15px; margin-bottom: 30px; text-align: left;">
+          <h4 style="color: #721c24; margin: 0 0 10px 0;">🚨 Common Issues:</h4>
+          <ul style="color: #721c24; margin: 0; padding-left: 20px; font-size: 14px;">
+            <li>Missing config.js file</li>
+            <li>Using placeholder API keys instead of real ones</li>
+            <li>Domain not authorized in Firebase/Gemini settings</li>
+            <li>Ad blockers preventing Firebase from loading</li>
+          </ul>
+          <p style="margin: 10px 0 0 0; color: #721c24; font-size: 14px;">
+            <strong>Need help?</strong> Check our <a href="DEPLOYMENT.md" style="color: #0c5460;">Deployment Guide</a> for detailed troubleshooting.
+          </p>
+        </div>
+        
+        <button onclick="window.location.reload()" style="
+          background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+          color: white;
+          border: none;
+          padding: 12px 30px;
+          border-radius: 25px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s;
+        " onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+          🔄 Refresh Page
+        </button>
+        
+        <p style="margin-top: 20px; font-size: 14px; color: #666;">
+          After creating config.js with your API keys, refresh the page to continue.
+        </p>
+      </div>
+    </div>
+  `;
+  
+  // Find container and replace content
+  const container = document.querySelector('.container');
+  if (container) {
+    // Keep the header, replace the rest
+    const header = container.querySelector('.header');
+    container.innerHTML = '';
+    if (header) {
+      container.appendChild(header);
+    }
+    container.insertAdjacentHTML('beforeend', setupHTML);
+  }
+}
+
+// Make setup mode globally accessible
+window.showSetupMode = showSetupMode;
