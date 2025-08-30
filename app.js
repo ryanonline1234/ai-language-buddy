@@ -452,13 +452,11 @@ function sendMessage() {
 }
 
 function addMessage(message, sender) {
-    // Add to current active language tab
-    addMessageToLanguageTab(message, sender, currentActiveLanguage);
-}
-
-function addMessageToLanguageTab(message, sender, language) {
-    const chatMessages = document.getElementById(language) || document.getElementById('chatMessages');
-    if (!chatMessages) return;
+    const chatMessages = document.getElementById('chat-messages');
+    if (!chatMessages) {
+        console.error('Chat messages container not found');
+        return;
+    }
     
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('message', sender);
@@ -483,14 +481,22 @@ function addMessageToLanguageTab(message, sender, language) {
     
     // Auto-speak if enabled
     if (sender === 'ai' && autoSpeakEnabled) {
-        const targetLanguage = language || currentActiveLanguage || 'Spanish';
+        const targetLanguage = currentActiveLanguage || 'Spanish';
         setTimeout(() => speakText(message, targetLanguage), 500);
     }
 }
 
+// Legacy function for compatibility
+function addMessageToLanguageTab(message, sender, language) {
+    addMessage(message, sender);
+}
+
 function showTypingIndicator() {
-  const chatMessages = document.getElementById(currentActiveLanguage) || document.getElementById('chatMessages');
-  if (!chatMessages) return;
+  const chatMessages = document.getElementById('chat-messages');
+  if (!chatMessages) {
+    console.error('Chat messages container not found');
+    return;
+  }
   
   const typingDiv = document.createElement('div');
   typingDiv.classList.add('message', 'ai', 'typing');
@@ -540,8 +546,10 @@ function showAuthInterface() {
 }
 
 function clearChat() {
-  const chatMessages = document.getElementById(currentActiveLanguage) || document.getElementById('chatMessages');
-  if (chatMessages) chatMessages.innerHTML = '';
+  const chatMessages = document.getElementById('chat-messages');
+  if (chatMessages) {
+    chatMessages.innerHTML = '';
+  }
   
   // Clear the conversation history for the current language
   if (conversationHistoryByLanguage[currentActiveLanguage]) {
