@@ -98,7 +98,8 @@ async function createUserProfile(user) {
                 totalMessages: 0,
                 minutesLearned: 0,
                 streak: 0,
-                lastActive: null
+                lastActive: null,
+                lastStreakUpdate: null
             },
             preferences: {
                 targetLanguage: 'Spanish',
@@ -184,30 +185,48 @@ async function updateStreak() {
     const userRef = db.collection('users').doc(window.auth.currentUser.uid);
     const doc = await userRef.get();
     if (doc.exists) {
-        const lastActive = doc.data().stats.lastActive;
-        const currentStreak = doc.data().stats.streak || 0;
-        if (lastActive) {
-            const lastDate = lastActive.toDate();
-            const today = new Date();
-            const diffTime = Math.abs(today - lastDate);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            if (diffDays === 1) {
-                // Consecutive day - increase streak
+        const userData = doc.data();
+        const lastStreakUpdate = userData.stats.lastStreakUpdate;
+        const currentStreak = userData.stats.streak || 0;
+        const today = new Date();
+        
+        // Get today's date at midnight for comparison
+        const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        
+        if (lastStreakUpdate) {
+            const lastStreakDate = lastStreakUpdate.toDate();
+            const lastStreakMidnight = new Date(lastStreakDate.getFullYear(), lastStreakDate.getMonth(), lastStreakDate.getDate());
+            
+            // Calculate difference in calendar days
+            const diffTime = todayMidnight - lastStreakMidnight;
+            const diffDays = diffTime / (1000 * 60 * 60 * 24);
+            
+            if (diffDays === 0) {
+                // Same day - don't update streak
+                console.log('Same day login - streak unchanged');
+                return;
+            } else if (diffDays === 1) {
+                // Next day - increase streak
                 await userRef.update({
-                    'stats.streak': currentStreak + 1
+                    'stats.streak': currentStreak + 1,
+                    'stats.lastStreakUpdate': firebase.firestore.FieldValue.serverTimestamp()
                 });
+                console.log(`✅ Streak increased to ${currentStreak + 1}`);
             } else if (diffDays > 1) {
-                // Streak broken - reset to 1
+                // Missed day(s) - reset streak to 1
                 await userRef.update({
-                    'stats.streak': 1
+                    'stats.streak': 1,
+                    'stats.lastStreakUpdate': firebase.firestore.FieldValue.serverTimestamp()
                 });
+                console.log('🔄 Streak reset to 1 (missed days)');
             }
-            // If diffDays === 0 (same day), don't update streak
         } else {
             // First time - start streak
             await userRef.update({
-                'stats.streak': 1
+                'stats.streak': 1,
+                'stats.lastStreakUpdate': firebase.firestore.FieldValue.serverTimestamp()
             });
+            console.log('🌟 Streak started at 1 (first time)');
         }
     }
 }
