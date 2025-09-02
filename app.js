@@ -489,20 +489,8 @@ async function getUserStats() {
     return null;
 }
 
-// ====== UPDATE YOUR EXISTING FUNCTIONS ======
-// Modify your existing sendMessage function to save to Firestore
-const originalSendMessage = sendMessage;
-window.sendMessage = async function() {
-    const messageInput = document.getElementById('messageInput');
-    const message = messageInput.value.trim();
-    const targetLanguage = document.getElementById('targetLanguage').value;
-    if (message) {
-        // Save to Firestore
-        await saveMessageToFirestore(message, 'user', targetLanguage);
-    }
-    // Call original function
-    originalSendMessage();
-};
+// ====== REMOVE DUPLICATE SENDMESSAGE WRAPPER ======
+// This wrapper was causing duplication - removed to fix the issue
 
 // Helper function for auth validation
 function validateAuthInput() {
@@ -701,6 +689,12 @@ function addMessage(message, sender, shouldAutoSpeak = true) {
     messageDiv.innerHTML = messageHTML;
     chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Save to Firestore (only if not loading from database)
+    if (db && window.auth.currentUser && shouldAutoSpeak !== false) {
+        const targetLanguage = document.getElementById('targetLanguage')?.value || currentActiveLanguage || 'Spanish';
+        saveMessageToFirestore(message, sender, targetLanguage);
+    }
     
     // Auto-speak if enabled and allowed
     if (sender === 'ai' && autoSpeakEnabled && shouldAutoSpeak) {
@@ -2359,37 +2353,8 @@ function togglePronunciationMode() {
   }
 }
 
-// ====== ENHANCED MESSAGE FUNCTIONS ======
-
-window.addMessage = function(message, sender) {
-    const chatMessages = document.getElementById('chat-messages');
-    const messageDiv = document.createElement('div');
-    messageDiv.classList.add('message', sender);
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    // Add buttons to messages
-    const messageHTML = `
-        <div class="message-content">
-            <div class="message-text">${message}</div>
-            <div class="message-actions">
-                <button class="message-speaker-btn" onclick="speakMessage('${message.replace(/'/g, "\\'")}', '${sender}')">🔊</button>
-                <button class="message-favorite-btn" onclick="favoriteMessage('${message.replace(/'/g, "\\'")}', '${sender}')">⭐</button>
-            </div>
-            <div class="message-time">${timestamp}</div>
-        </div>
-    `;
-    messageDiv.innerHTML = messageHTML;
-    chatMessages.appendChild(messageDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-    // Auto-speak if enabled
-    if (sender === 'ai' && autoSpeakEnabled) {
-        const targetLanguage = document.getElementById('targetLanguage')?.value || 'Spanish';
-        setTimeout(() => speakText(message, targetLanguage), 500);
-    }
-    if (db && window.auth.currentUser) {
-        const targetLanguage = document.getElementById('targetLanguage')?.value || 'Spanish';
-        saveMessageToFirestore(message, sender, targetLanguage);
-    }
-};
+// ====== REMOVE DUPLICATE ADDMESSAGE FUNCTION ======
+// This duplicate function was causing message duplication - removed
 
 // Speak a specific message
 function speakMessage(message, sender) {
