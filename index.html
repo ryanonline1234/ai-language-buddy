@@ -246,6 +246,58 @@
             background: rgba(255,255,255,0.2);
         }
 
+        /* Difficulty Indicator Styles */
+        .difficulty-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,0.15);
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: 15px;
+        }
+
+        .difficulty-badge {
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .difficulty-beginner {
+            background: #28a745;
+            color: white;
+        }
+
+        .difficulty-intermediate {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .difficulty-advanced {
+            background: #dc3545;
+            color: white;
+        }
+
+        .confidence-bar {
+            width: 40px;
+            height: 4px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: white;
+            transition: width 0.3s ease;
+            border-radius: 2px;
+        }
+
         /* Language Tabs Styles */
         /* Chat Messages Styles */
         .chat-messages {
@@ -1405,6 +1457,13 @@
                         <option value="Korean">Korean</option>
                         <option value="Chinese">Chinese</option>
                     </select>
+                    <div class="difficulty-indicator" id="difficulty-indicator">
+                        <span>📊</span>
+                        <span class="difficulty-badge difficulty-beginner" id="difficulty-badge">Beginner</span>
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" id="confidence-fill" style="width: 50%"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="chat-controls">
                     <button class="btn-small dashboard-btn" onclick="openDashboard()">📊 Dashboard</button>

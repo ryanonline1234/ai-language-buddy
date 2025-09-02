@@ -8,6 +8,14 @@ let autoSpeakEnabled = false;
 let slowModeEnabled = false;
 let pronunciationModeEnabled = false;
 
+// Difficulty adjustment variables
+let userDifficultyLevel = 'beginner';
+let userPerformanceHistory = [];
+let currentLanguageDifficulty = {
+  level: 'beginner',
+  confidence: 0.5
+};
+
 // Language codes for speech recognition and synthesis
 const LANGUAGE_CODES = {
     'Spanish': 'es-ES',
@@ -82,6 +90,9 @@ function initializeApp() {
         }, 1000);
         // Load user preferences
         await loadUserPreferences(user);
+        // Load difficulty settings for current language
+        await loadUserDifficulty(user, currentActiveLanguage);
+        updateDifficultyIndicator();
         showChatInterface();
       } else {
         console.log('User signed out');
@@ -139,6 +150,21 @@ async function createUserProfile(user) {
             preferences: {
                 targetLanguage: 'Spanish',
                 nativeLanguage: 'English'
+            },
+            difficulty: {
+                currentLevel: 'beginner', // beginner, intermediate, advanced
+                lastAdjustment: firebase.firestore.FieldValue.serverTimestamp(),
+                performanceHistory: [],
+                languageSpecific: {
+                    'Spanish': { level: 'beginner', confidence: 0.5 },
+                    'French': { level: 'beginner', confidence: 0.5 },
+                    'German': { level: 'beginner', confidence: 0.5 },
+                    'Italian': { level: 'beginner', confidence: 0.5 },
+                    'Portuguese': { level: 'beginner', confidence: 0.5 },
+                    'Japanese': { level: 'beginner', confidence: 0.5 },
+                    'Korean': { level: 'beginner', confidence: 0.5 },
+                    'Chinese': { level: 'beginner', confidence: 0.5 }
+                }
             }
         });
         console.log('✅ User profile created');
@@ -747,6 +773,12 @@ function handleKeyPress(event) {
 function changeLanguage() {
   const targetLanguage = document.getElementById('targetLanguage').value;
   console.log('Language changed to:', targetLanguage);
+  
+  // Load difficulty settings for the new language
+  if (window.auth.currentUser) {
+    loadUserDifficulty(window.auth.currentUser, targetLanguage);
+  }
+  
   // Update speech recognition language if available
   if (typeof updateRecognitionLanguage === 'function') {
     updateRecognitionLanguage();
@@ -788,6 +820,13 @@ function selectLanguage(language) {
   
   // Clear and load conversation for this language
   loadConversationForLanguage(language);
+  
+  // Load difficulty settings for this language
+  if (window.auth.currentUser) {
+    loadUserDifficulty(window.auth.currentUser, language).then(() => {
+      updateDifficultyIndicator();
+    });
+  }
   
   // Update speech recognition language if available
   if (typeof updateRecognitionLanguage === 'function') {
@@ -1140,23 +1179,36 @@ async function getAIResponse(message, targetLanguage, nativeLanguage) {
       conversationHistory = conversationHistory.slice(-6);
     }
     
+    // Analyze user performance for difficulty adjustment
+    const performanceAnalysis = analyzeUserPerformance(message);
+    userPerformanceHistory.push(performanceAnalysis);
+    
+    // Keep only last 10 performance entries
+    if (userPerformanceHistory.length > 10) {
+      userPerformanceHistory = userPerformanceHistory.slice(-10);
+    }
+    
+    // Adjust difficulty based on recent performance
+    const newDifficulty = adjustDifficultyLevel(performanceAnalysis, userDifficultyLevel);
+    if (newDifficulty.level !== userDifficultyLevel || 
+        Math.abs(newDifficulty.confidence - currentLanguageDifficulty.confidence) > 0.05) {
+      await saveDifficultyAdjustment(targetLanguage, newDifficulty);
+      updateDifficultyIndicator(); // Update UI
+    }
+    
     // Build conversation context
     let conversationContext = '';
     conversationHistory.forEach(entry => {
       conversationContext += `${entry.role === 'user' ? 'Student' : 'Tutor'}: ${entry.message}\n`;
     });
     
-    // Create smart language learning prompt
-    const systemPrompt = `You are a friendly, encouraging language tutor helping someone learn ${targetLanguage}. Their native language is ${nativeLanguage}.
-
-IMPORTANT RULES:
-1. Always respond in ${targetLanguage} (unless they need urgent clarification)
-2. Keep responses to 1-3 sentences maximum
-3. If they make grammar mistakes, gently correct: "Good try! We say '[correct version]' instead."
-4. Ask follow-up questions to keep conversation flowing
-5. Be positive and encouraging
-6. Explain new vocabulary briefly if needed
-7. Match their conversation level (don't be too advanced)
+    // Create difficulty-aware system prompt
+    const systemPrompt = generateDifficultyAwarePrompt(
+      targetLanguage, 
+      nativeLanguage, 
+      userDifficultyLevel, 
+      currentLanguageDifficulty.confidence
+    ) + `
 
 Previous conversation:
 ${conversationContext}
@@ -1273,6 +1325,187 @@ Now respond to their latest message naturally and helpfully:`;
     const responses = fallbackResponses[targetLanguage] || fallbackResponses['default'];
     return responses[Math.floor(Math.random() * responses.length)];
   }
+}
+
+// ====== SMART DIFFICULTY ADJUSTMENT SYSTEM ======
+
+// Performance analysis function
+function analyzeUserPerformance(userMessage, responseTime = null) {
+  const analysis = {
+    timestamp: Date.now(),
+    messageLength: userMessage.length,
+    wordCount: userMessage.split(' ').length,
+    responseTime: responseTime,
+    complexityScore: 0,
+    strugglingIndicators: 0,
+    excellenceIndicators: 0
+  };
+
+  // Analyze message complexity
+  const complexWords = userMessage.split(' ').filter(word => word.length > 6).length;
+  analysis.complexityScore = complexWords / analysis.wordCount;
+
+  // Detect struggling indicators
+  const strugglingPhrases = ['what does', 'what means', 'i don\'t understand', 'help', 'explain', 'confused'];
+  const strugglingCount = strugglingPhrases.filter(phrase => 
+    userMessage.toLowerCase().includes(phrase)
+  ).length;
+  analysis.strugglingIndicators = strugglingCount;
+
+  // Detect excellence indicators  
+  const excellenceIndicators = [
+    analysis.wordCount > 15, // Longer responses
+    analysis.complexityScore > 0.3, // Complex vocabulary usage
+    responseTime && responseTime < 5000 // Quick responses
+  ].filter(Boolean).length;
+  analysis.excellenceIndicators = excellenceIndicators;
+
+  return analysis;
+}
+
+// Difficulty adjustment logic
+function adjustDifficultyLevel(performanceAnalysis, currentLevel) {
+  const { strugglingIndicators, excellenceIndicators, complexityScore } = performanceAnalysis;
+  
+  let newLevel = currentLevel;
+  let newConfidence = currentLanguageDifficulty.confidence;
+
+  // If user is struggling, decrease difficulty
+  if (strugglingIndicators > 0) {
+    newConfidence = Math.max(0.1, newConfidence - 0.1);
+    if (newConfidence < 0.3 && currentLevel !== 'beginner') {
+      newLevel = currentLevel === 'advanced' ? 'intermediate' : 'beginner';
+      newConfidence = 0.5;
+    }
+  }
+  // If user is excelling, increase difficulty  
+  else if (excellenceIndicators >= 2) {
+    newConfidence = Math.min(1.0, newConfidence + 0.1);
+    if (newConfidence > 0.7 && currentLevel !== 'advanced') {
+      newLevel = currentLevel === 'beginner' ? 'intermediate' : 'advanced';
+      newConfidence = 0.5;
+    }
+  }
+
+  return { level: newLevel, confidence: newConfidence };
+}
+
+// Generate difficulty-aware AI prompt
+function generateDifficultyAwarePrompt(targetLanguage, nativeLanguage, difficultyLevel, confidence) {
+  const basePrompt = `You are a friendly, encouraging language tutor helping someone learn ${targetLanguage}. Their native language is ${nativeLanguage}.`;
+  
+  let difficultyInstructions = '';
+  
+  switch (difficultyLevel) {
+    case 'beginner':
+      difficultyInstructions = `
+DIFFICULTY LEVEL: BEGINNER (Confidence: ${Math.round(confidence * 100)}%)
+- Use simple, common vocabulary
+- Keep sentences short (5-8 words)
+- Speak slower conceptually
+- Provide more context and explanations
+- Use present tense primarily
+- Offer helpful hints when they struggle
+- Be very encouraging and patient`;
+      break;
+      
+    case 'intermediate':
+      difficultyInstructions = `
+DIFFICULTY LEVEL: INTERMEDIATE (Confidence: ${Math.round(confidence * 100)}%)
+- Use moderate vocabulary with occasional new words
+- Use varied sentence structures
+- Include past and future tenses
+- Introduce idiomatic expressions gradually
+- Ask follow-up questions to deepen conversation
+- Provide gentle corrections with explanations`;
+      break;
+      
+    case 'advanced':
+      difficultyInstructions = `
+DIFFICULTY LEVEL: ADVANCED (Confidence: ${Math.round(confidence * 100)}%)
+- Use sophisticated vocabulary and expressions
+- Employ complex grammar structures
+- Discuss abstract topics and cultural nuances
+- Use less scaffolding, more natural conversation
+- Challenge them with new concepts
+- Provide minimal corrections, let them self-correct`;
+      break;
+  }
+
+  return basePrompt + difficultyInstructions + `
+
+IMPORTANT RULES:
+1. Always respond in ${targetLanguage} (unless they need urgent clarification)
+2. Keep responses to 1-3 sentences maximum
+3. If they make grammar mistakes, gently correct: "Good try! We say '[correct version]' instead."
+4. Ask follow-up questions to keep conversation flowing
+5. Be positive and encouraging
+6. Adapt your language complexity to their current level`;
+}
+
+// Save difficulty adjustment to database
+async function saveDifficultyAdjustment(language, newDifficulty) {
+  if (!db || !window.auth.currentUser) return;
+  
+  try {
+    const userRef = db.collection('users').doc(window.auth.currentUser.uid);
+    await userRef.update({
+      [`difficulty.languageSpecific.${language}`]: newDifficulty,
+      'difficulty.lastAdjustment': firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
+    // Update local variables
+    currentLanguageDifficulty = newDifficulty;
+    userDifficultyLevel = newDifficulty.level;
+    
+    console.log(`✅ Difficulty adjusted to ${newDifficulty.level} for ${language}`);
+  } catch (error) {
+    console.error('Error saving difficulty adjustment:', error);
+  }
+}
+
+// Load user difficulty settings
+async function loadUserDifficulty(user, language) {
+  if (!db || !user) return;
+  
+  try {
+    const userDoc = await db.collection('users').doc(user.uid).get();
+    if (userDoc.exists) {
+      const userData = userDoc.data();
+      const difficulty = userData.difficulty || {};
+      const languageSpecific = difficulty.languageSpecific || {};
+      
+      if (languageSpecific[language]) {
+        currentLanguageDifficulty = languageSpecific[language];
+        userDifficultyLevel = currentLanguageDifficulty.level;
+        console.log(`📊 Loaded difficulty: ${userDifficultyLevel} for ${language}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error loading difficulty settings:', error);
+  }
+}
+
+// Update difficulty indicator in UI
+function updateDifficultyIndicator() {
+  const badge = document.getElementById('difficulty-badge');
+  const fill = document.getElementById('confidence-fill');
+  
+  if (!badge || !fill) return;
+  
+  // Update badge text and color
+  badge.textContent = userDifficultyLevel.charAt(0).toUpperCase() + userDifficultyLevel.slice(1);
+  badge.className = `difficulty-badge difficulty-${userDifficultyLevel}`;
+  
+  // Update confidence bar
+  const confidencePercent = Math.round(currentLanguageDifficulty.confidence * 100);
+  fill.style.width = `${confidencePercent}%`;
+  
+  // Add a subtle animation
+  badge.style.transform = 'scale(1.1)';
+  setTimeout(() => {
+    badge.style.transform = 'scale(1)';
+  }, 200);
 }
 
 // ====== SMART REVIEW SUMMARIES FEATURE ======
