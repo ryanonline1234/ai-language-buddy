@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Suggestions Demo - AI Language Buddy</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .demo-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 30px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        .demo-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .demo-header h1 {
+            color: #333;
+            margin: 0 0 10px 0;
+        }
+
+        .demo-header p {
+            color: #666;
+            margin: 0;
+        }
+
+        .chat-input {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .input-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .message-input:focus {
+            border-color: #667eea;
+        }
+
+        .send-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: transform 0.2s;
+        }
+
+        .send-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        /* Word Suggestions Styles */
+        .suggestions-container {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            right: 60px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 1000;
+            margin-bottom: 5px;
+            display: none;
+        }
+
+        .suggestion-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+
+        .suggestion-item:hover,
+        .suggestion-item.selected {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .suggestion-phrase {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+
+        .suggestion-meta {
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            opacity: 0.8;
+            flex-wrap: wrap;
+        }
+
+        .suggestion-item:hover .suggestion-meta,
+        .suggestion-item.selected .suggestion-meta {
+            opacity: 1;
+        }
+
+        .suggestion-learned {
+            color: #666;
+        }
+
+        .suggestion-item:hover .suggestion-learned,
+        .suggestion-item.selected .suggestion-learned {
+            color: rgba(255,255,255,0.9);
+        }
+
+        .suggestion-status {
+            color: #4CAF50;
+        }
+
+        .suggestion-item:hover .suggestion-status,
+        .suggestion-item.selected .suggestion-status {
+            color: rgba(255,255,255,0.9);
+        }
+
+        .suggestion-usage {
+            color: #FF9800;
+        }
+
+        .suggestion-item:hover .suggestion-usage,
+        .suggestion-item.selected .suggestion-usage {
+            color: rgba(255,255,255,0.9);
+        }
+
+        .encouragement-message {
+            background: linear-gradient(45deg, #4CAF50, #8BC34A);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 25px;
+            margin: 10px 0;
+            text-align: center;
+            font-weight: 500;
+            animation: slideInRight 0.3s ease-out;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .vocabulary-list {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .vocabulary-list h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+        }
+
+        .vocab-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .vocab-item:last-child {
+            border-bottom: none;
+        }
+
+        .vocab-phrase {
+            font-weight: 500;
+        }
+
+        .vocab-meta {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .instructions {
+            background: #e3f2fd;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #1976d2;
+        }
+
+        .instructions h4 {
+            margin: 0 0 10px 0;
+        }
+
+        .instructions ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-container">
+        <div class="demo-header">
+            <h1>🤖 Word Suggestions Demo</h1>
+            <p>Context-Based Vocabulary Suggestions Feature</p>
+        </div>
+
+        <div class="instructions">
+            <h4>📚 How to test:</h4>
+            <ul>
+                <li>Start typing words like "hola", "delicious", "casa", "beautiful"</li>
+                <li>Use arrow keys to navigate suggestions</li>
+                <li>Press Tab or click to select a suggestion</li>
+                <li>Watch vocabulary status change from passive to active!</li>
+            </ul>
+        </div>
+
+        <div class="chat-input">
+            <div class="input-controls">
+                <input type="text" id="messageInput" class="message-input" 
+                       placeholder="Type some Spanish words to see suggestions..." 
+                       autocomplete="off">
+                <button class="send-btn" onclick="sendMessage()">Send</button>
+            </div>
+            <div id="suggestions-container" class="suggestions-container"></div>
+        </div>
+
+        <div id="encouragement-area"></div>
+
+        <div class="vocabulary-list">
+            <h3>📖 Your Learned Vocabulary (Spanish)</h3>
+            <div id="vocab-list"></div>
+        </div>
+    </div>
+
+    <script>
+        // Mock learned vocabulary data
+        let learnedVocabulary = {
+            'Spanish': [
+                { 
+                    id: '1', 
+                    phrase: 'hola', 
+                    learnedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+                    usageCount: 3,
+                    isActive: true
+                },
+                { 
+                    id: '2', 
+                    phrase: 'delicious', 
+                    learnedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 1 week ago
+                    usageCount: 0,
+                    isActive: false
+                },
+                { 
+                    id: '3', 
+                    phrase: 'casa', 
+                    learnedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+                    usageCount: 1,
+                    isActive: true
+                },
+                { 
+                    id: '4', 
+                    phrase: 'beautiful', 
+                    learnedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), // 10 days ago
+                    usageCount: 0,
+                    isActive: false
+                },
+                { 
+                    id: '5', 
+                    phrase: 'gracias', 
+                    learnedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
+                    usageCount: 2,
+                    isActive: true
+                },
+                { 
+                    id: '6', 
+                    phrase: 'hermoso', 
+                    learnedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
+                    usageCount: 0,
+                    isActive: false
+                }
+            ]
+        };
+
+        let vocabularySuggestions = [];
+        let isShowingSuggestions = false;
+        let selectedSuggestionIndex = -1;
+
+        // Initialize the demo
+        function initDemo() {
+            const messageInput = document.getElementById('messageInput');
+            messageInput.addEventListener('input', handleInputChange);
+            messageInput.addEventListener('keydown', handleKeyPress);
+            messageInput.addEventListener('blur', handleInputBlur);
+            
+            displayVocabularyList();
+        }
+
+        // Handle input changes for word suggestions
+        function handleInputChange(event) {
+            const input = event.target.value;
+            const cursorPos = event.target.selectionStart;
+            
+            // Get the current word being typed
+            const currentWord = getCurrentWord(input, cursorPos);
+            
+            if (currentWord && currentWord.length >= 2) {
+                showWordSuggestions(currentWord);
+            } else {
+                hideSuggestions();
+            }
+        }
+
+        // Handle key presses
+        function handleKeyPress(event) {
+            if (event.key === 'ArrowDown' && isShowingSuggestions) {
+                event.preventDefault();
+                navigateSuggestions(1);
+            } else if (event.key === 'ArrowUp' && isShowingSuggestions) {
+                event.preventDefault();
+                navigateSuggestions(-1);
+            } else if (event.key === 'Tab' && isShowingSuggestions && selectedSuggestionIndex >= 0) {
+                event.preventDefault();
+                selectSuggestion(selectedSuggestionIndex);
+            } else if (event.key === 'Escape' && isShowingSuggestions) {
+                hideSuggestions();
+            }
+        }
+
+        // Get the current word being typed at cursor position
+        function getCurrentWord(text, cursorPos) {
+            const beforeCursor = text.substring(0, cursorPos);
+            const afterCursor = text.substring(cursorPos);
+            
+            // Find word boundaries
+            const wordStart = beforeCursor.search(/\S+$/);
+            const wordEnd = afterCursor.search(/\s/);
+            
+            if (wordStart === -1) return '';
+            
+            const start = wordStart;
+            const end = cursorPos + (wordEnd === -1 ? afterCursor.length : wordEnd);
+            
+            return text.substring(start, end).trim();
+        }
+
+        // Show word suggestions based on input
+        function showWordSuggestions(currentWord) {
+            const vocabulary = learnedVocabulary['Spanish'] || [];
+            
+            // Filter vocabulary based on current input
+            const suggestions = vocabulary.filter(item => {
+                return item.phrase.toLowerCase().includes(currentWord.toLowerCase()) ||
+                       item.phrase.toLowerCase().startsWith(currentWord.toLowerCase());
+            }).slice(0, 5); // Limit to 5 suggestions
+            
+            if (suggestions.length > 0) {
+                displaySuggestions(suggestions);
+            } else {
+                hideSuggestions();
+            }
+        }
+
+        // Display suggestions in UI
+        function displaySuggestions(suggestions) {
+            const container = document.getElementById('suggestions-container');
+            if (!container) return;
+            
+            vocabularySuggestions = suggestions;
+            selectedSuggestionIndex = -1;
+            isShowingSuggestions = true;
+            
+            container.innerHTML = '';
+            container.style.display = 'block';
+            
+            suggestions.forEach((suggestion, index) => {
+                const suggestionElement = document.createElement('div');
+                suggestionElement.className = 'suggestion-item';
+                suggestionElement.setAttribute('data-index', index);
+                
+                // Calculate how long ago it was learned
+                const learnedDate = suggestion.learnedAt;
+                const daysAgo = Math.floor((new Date() - learnedDate) / (1000 * 60 * 60 * 24));
+                const timeAgo = daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo} days ago`;
+                
+                // Status indicator
+                const statusIcon = suggestion.isActive ? '🔥' : '💤';
+                const statusText = suggestion.isActive ? 'Active' : 'Passive';
+                const usageCount = suggestion.usageCount || 0;
+                
+                suggestionElement.innerHTML = `
+                    <div class="suggestion-phrase">${suggestion.phrase}</div>
+                    <div class="suggestion-meta">
+                        <span class="suggestion-learned">📚 Learned ${timeAgo}</span>
+                        <span class="suggestion-status">${statusIcon} ${statusText}</span>
+                        <span class="suggestion-usage">Used ${usageCount}x</span>
+                    </div>
+                `;
+                
+                suggestionElement.addEventListener('click', () => selectSuggestion(index));
+                suggestionElement.addEventListener('mouseenter', () => {
+                    selectedSuggestionIndex = index;
+                    updateSuggestionSelection();
+                });
+                
+                container.appendChild(suggestionElement);
+            });
+        }
+
+        // Navigate through suggestions with arrow keys
+        function navigateSuggestions(direction) {
+            if (vocabularySuggestions.length === 0) return;
+            
+            selectedSuggestionIndex += direction;
+            
+            if (selectedSuggestionIndex < 0) {
+                selectedSuggestionIndex = vocabularySuggestions.length - 1;
+            } else if (selectedSuggestionIndex >= vocabularySuggestions.length) {
+                selectedSuggestionIndex = 0;
+            }
+            
+            updateSuggestionSelection();
+        }
+
+        // Update visual selection of suggestions
+        function updateSuggestionSelection() {
+            const container = document.getElementById('suggestions-container');
+            if (!container) return;
+            
+            const items = container.querySelectorAll('.suggestion-item');
+            items.forEach((item, index) => {
+                item.classList.toggle('selected', index === selectedSuggestionIndex);
+            });
+        }
+
+        // Select a suggestion and insert it into the input
+        function selectSuggestion(index) {
+            if (index < 0 || index >= vocabularySuggestions.length) return;
+            
+            const suggestion = vocabularySuggestions[index];
+            const messageInput = document.getElementById('messageInput');
+            const cursorPos = messageInput.selectionStart;
+            const text = messageInput.value;
+            
+            // Find the current word boundaries
+            const beforeCursor = text.substring(0, cursorPos);
+            const afterCursor = text.substring(cursorPos);
+            const wordStart = beforeCursor.search(/\S+$/);
+            const wordEnd = afterCursor.search(/\s/);
+            
+            if (wordStart !== -1) {
+                const beforeWord = text.substring(0, wordStart);
+                const afterWord = wordEnd === -1 ? '' : afterCursor.substring(wordEnd);
+                
+                // Replace the current word with the suggestion
+                messageInput.value = beforeWord + suggestion.phrase + afterWord;
+                
+                // Set cursor position after the inserted phrase
+                const newCursorPos = beforeWord.length + suggestion.phrase.length;
+                messageInput.setSelectionRange(newCursorPos, newCursorPos);
+                
+                // Mark vocabulary as actively used (mock)
+                markVocabularyAsActive(suggestion);
+                
+                // Show encouragement message
+                showEncouragementMessage(suggestion);
+            }
+            
+            hideSuggestions();
+            messageInput.focus();
+        }
+
+        // Mock function to mark vocabulary as active
+        function markVocabularyAsActive(suggestion) {
+            const vocabulary = learnedVocabulary['Spanish'];
+            const item = vocabulary.find(v => v.id === suggestion.id);
+            if (item) {
+                item.usageCount = (item.usageCount || 0) + 1;
+                item.isActive = true;
+                displayVocabularyList(); // Refresh the display
+            }
+        }
+
+        // Show encouragement message when using learned vocabulary
+        function showEncouragementMessage(suggestion) {
+            const isFirstTimeActive = !suggestion.isActive;
+            let message = '';
+            
+            if (isFirstTimeActive) {
+                message = `🎉 Great! You just activated "${suggestion.phrase}" from passive to active vocabulary!`;
+            } else {
+                message = `🔥 Nice use of "${suggestion.phrase}" - building your active vocabulary!`;
+            }
+            
+            // Show temporary message
+            const messageContainer = document.createElement('div');
+            messageContainer.className = 'encouragement-message';
+            messageContainer.textContent = message;
+            
+            const encouragementArea = document.getElementById('encouragement-area');
+            encouragementArea.appendChild(messageContainer);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                messageContainer.remove();
+            }, 3000);
+        }
+
+        // Hide suggestions
+        function hideSuggestions() {
+            const container = document.getElementById('suggestions-container');
+            if (container) {
+                container.style.display = 'none';
+                isShowingSuggestions = false;
+                selectedSuggestionIndex = -1;
+                vocabularySuggestions = [];
+            }
+        }
+
+        // Handle input blur (with delay to allow clicks on suggestions)
+        function handleInputBlur() {
+            setTimeout(() => {
+                hideSuggestions();
+            }, 200);
+        }
+
+        // Display the vocabulary list
+        function displayVocabularyList() {
+            const container = document.getElementById('vocab-list');
+            const vocabulary = learnedVocabulary['Spanish'] || [];
+            
+            container.innerHTML = '';
+            
+            vocabulary.forEach(item => {
+                const vocabElement = document.createElement('div');
+                vocabElement.className = 'vocab-item';
+                
+                const daysAgo = Math.floor((new Date() - item.learnedAt) / (1000 * 60 * 60 * 24));
+                const timeAgo = daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo} days ago`;
+                
+                const statusIcon = item.isActive ? '🔥' : '💤';
+                const statusText = item.isActive ? 'Active' : 'Passive';
+                
+                vocabElement.innerHTML = `
+                    <div>
+                        <div class="vocab-phrase">${item.phrase}</div>
+                        <div class="vocab-meta">Learned ${timeAgo} • ${statusIcon} ${statusText} • Used ${item.usageCount}x</div>
+                    </div>
+                `;
+                
+                container.appendChild(vocabElement);
+            });
+        }
+
+        // Mock send message function
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            
+            if (message) {
+                // Show a simple confirmation
+                showEncouragementMessage({ phrase: message, isActive: true });
+                messageInput.value = '';
+            }
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', initDemo);
+    </script>
+</body>
+</html>

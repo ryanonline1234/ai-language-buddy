@@ -1309,6 +1309,135 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        /* ====== WORD SUGGESTIONS STYLES ====== */
+        .suggestions-container {
+            position: absolute;
+            bottom: 100%;
+            left: 50px;
+            right: 50px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 1000;
+            margin-bottom: 5px;
+        }
+
+        .suggestion-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+
+        .suggestion-item:hover,
+        .suggestion-item.selected {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .suggestion-phrase {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+
+        .suggestion-meta {
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            opacity: 0.8;
+            flex-wrap: wrap;
+        }
+
+        .suggestion-item:hover .suggestion-meta,
+        .suggestion-item.selected .suggestion-meta {
+            opacity: 1;
+        }
+
+        .suggestion-learned {
+            color: #666;
+        }
+
+        .suggestion-item:hover .suggestion-learned,
+        .suggestion-item.selected .suggestion-learned {
+            color: rgba(255,255,255,0.9);
+        }
+
+        .suggestion-status {
+            color: #4CAF50;
+        }
+
+        .suggestion-item:hover .suggestion-status,
+        .suggestion-item.selected .suggestion-status {
+            color: rgba(255,255,255,0.9);
+        }
+
+        .suggestion-usage {
+            color: #FF9800;
+        }
+
+        .suggestion-item:hover .suggestion-usage,
+        .suggestion-item.selected .suggestion-usage {
+            color: rgba(255,255,255,0.9);
+        }
+
+        .encouragement-message {
+            background: linear-gradient(45deg, #4CAF50, #8BC34A);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 25px;
+            margin: 10px 20px;
+            text-align: center;
+            font-weight: 500;
+            animation: slideInRight 0.3s ease-out, fadeOut 0.5s ease-in 2.5s forwards;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+            to {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+        }
+
+        .chat-input {
+            position: relative;
+        }
+
+        /* Mobile responsive suggestions */
+        @media (max-width: 768px) {
+            .suggestions-container {
+                left: 10px;
+                right: 10px;
+                max-height: 200px;
+            }
+            
+            .suggestion-meta {
+                font-size: 11px;
+            }
+        }
     </style>
 </head>
 <body>
