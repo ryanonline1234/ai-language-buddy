@@ -34,6 +34,12 @@ let conversationHistoryByLanguage = {
   'Chinese': []
 };
 
+// ====== VOCABULARY TRACKING VARIABLES ======
+let learnedVocabulary = {}; // Cache for learned vocabulary by language
+let vocabularySuggestions = []; // Current suggestions
+let isShowingSuggestions = false;
+let selectedSuggestionIndex = -1;
+
 // Initialize Firebase when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
   console.log('🚀 DOM loaded, starting Firebase initialization...');
@@ -76,6 +82,7 @@ function initializeApp() {
         createUserProfile(user);
         updateStreak();
         initializeSidebar(); // Initialize sidebar
+        initializeWordSuggestions(); // Initialize word suggestions
         setTimeout(() => {
           loadConversationHistory();
           recalculateMessageCount(); // Fix any incorrect message counts
@@ -345,6 +352,117 @@ async function saveFavoritePhrase(phrase, translation, language) {
         alert('Phrase saved to your favorites!');
     } catch (error) {
         console.error('Error saving favorite:', error);
+    }
+}
+
+// ====== VOCABULARY TRACKING SYSTEM ======
+
+// Save learned vocabulary from conversation summaries
+async function saveLearnedVocabulary(phrases, language) {
+    if (!db || !window.auth.currentUser || !phrases || phrases.length === 0) return;
+    
+    try {
+        const batch = db.batch();
+        const vocabRef = db.collection('users')
+            .doc(window.auth.currentUser.uid)
+            .collection('vocabulary');
+        
+        for (const phrase of phrases) {
+            // Check if phrase already exists
+            const existingDoc = await vocabRef
+                .where('phrase', '==', phrase)
+                .where('language', '==', language)
+                .get();
+            
+            if (existingDoc.empty) {
+                // Add new vocabulary entry
+                const docRef = vocabRef.doc();
+                batch.set(docRef, {
+                    phrase: phrase,
+                    language: language,
+                    learnedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    usageCount: 0,
+                    lastUsed: null,
+                    isActive: false // Starts as passive vocabulary
+                });
+            }
+        }
+        
+        await batch.commit();
+        console.log('✅ Learned vocabulary saved:', phrases);
+        
+        // Update local cache
+        await loadLearnedVocabulary(language);
+    } catch (error) {
+        console.error('Error saving learned vocabulary:', error);
+    }
+}
+
+// Load learned vocabulary for a language
+async function loadLearnedVocabulary(language) {
+    if (!db || !window.auth.currentUser) return;
+    
+    try {
+        const snapshot = await db.collection('users')
+            .doc(window.auth.currentUser.uid)
+            .collection('vocabulary')
+            .where('language', '==', language)
+            .orderBy('learnedAt', 'desc')
+            .get();
+        
+        const vocabulary = [];
+        snapshot.forEach(doc => {
+            vocabulary.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        
+        // Update cache
+        learnedVocabulary[language] = vocabulary;
+        console.log(`📚 Loaded ${vocabulary.length} vocabulary items for ${language}`);
+        
+        return vocabulary;
+    } catch (error) {
+        console.error('Error loading learned vocabulary:', error);
+        return [];
+    }
+}
+
+// Mark vocabulary as actively used
+async function markVocabularyAsActive(phrase, language) {
+    if (!db || !window.auth.currentUser) return;
+    
+    try {
+        const snapshot = await db.collection('users')
+            .doc(window.auth.currentUser.uid)
+            .collection('vocabulary')
+            .where('phrase', '==', phrase)
+            .where('language', '==', language)
+            .get();
+        
+        if (!snapshot.empty) {
+            const doc = snapshot.docs[0];
+            await doc.ref.update({
+                usageCount: firebase.firestore.FieldValue.increment(1),
+                lastUsed: firebase.firestore.FieldValue.serverTimestamp(),
+                isActive: true
+            });
+            
+            console.log('✅ Vocabulary marked as active:', phrase);
+            
+            // Update local cache
+            const cachedVocab = learnedVocabulary[language];
+            if (cachedVocab) {
+                const item = cachedVocab.find(v => v.phrase === phrase);
+                if (item) {
+                    item.usageCount = (item.usageCount || 0) + 1;
+                    item.isActive = true;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error marking vocabulary as active:', error);
     }
 }
 
@@ -733,7 +851,261 @@ async function clearChatFromDatabase(language) {
 function handleKeyPress(event) {
   if (event.key === 'Enter') {
     sendMessage();
+  } else if (event.key === 'ArrowDown' && isShowingSuggestions) {
+    event.preventDefault();
+    navigateSuggestions(1);
+  } else if (event.key === 'ArrowUp' && isShowingSuggestions) {
+    event.preventDefault();
+    navigateSuggestions(-1);
+  } else if (event.key === 'Tab' && isShowingSuggestions && selectedSuggestionIndex >= 0) {
+    event.preventDefault();
+    selectSuggestion(selectedSuggestionIndex);
+  } else if (event.key === 'Escape' && isShowingSuggestions) {
+    hideSuggestions();
   }
+}
+
+// ====== WORD SUGGESTION SYSTEM ======
+
+// Initialize word suggestions when page loads
+function initializeWordSuggestions() {
+  const messageInput = document.getElementById('messageInput');
+  if (messageInput) {
+    // Add input event listener for real-time suggestions
+    messageInput.addEventListener('input', handleInputChange);
+    messageInput.addEventListener('focus', handleInputFocus);
+    messageInput.addEventListener('blur', handleInputBlur);
+    
+    // Create suggestions container
+    createSuggestionsContainer();
+  }
+}
+
+// Handle input changes for word suggestions
+function handleInputChange(event) {
+  const input = event.target.value;
+  const cursorPos = event.target.selectionStart;
+  
+  // Get the current word being typed
+  const currentWord = getCurrentWord(input, cursorPos);
+  
+  if (currentWord && currentWord.length >= 2) {
+    showWordSuggestions(currentWord);
+  } else {
+    hideSuggestions();
+  }
+}
+
+// Get the current word being typed at cursor position
+function getCurrentWord(text, cursorPos) {
+  const beforeCursor = text.substring(0, cursorPos);
+  const afterCursor = text.substring(cursorPos);
+  
+  // Find word boundaries
+  const wordStart = beforeCursor.search(/\S+$/);
+  const wordEnd = afterCursor.search(/\s/);
+  
+  if (wordStart === -1) return '';
+  
+  const start = wordStart;
+  const end = cursorPos + (wordEnd === -1 ? afterCursor.length : wordEnd);
+  
+  return text.substring(start, end).trim();
+}
+
+// Show word suggestions based on input
+function showWordSuggestions(currentWord) {
+  const targetLanguage = document.getElementById('targetLanguage').value;
+  const vocabulary = learnedVocabulary[targetLanguage] || [];
+  
+  // Filter vocabulary based on current input
+  const suggestions = vocabulary.filter(item => {
+    return item.phrase.toLowerCase().includes(currentWord.toLowerCase()) ||
+           item.phrase.toLowerCase().startsWith(currentWord.toLowerCase());
+  }).slice(0, 5); // Limit to 5 suggestions
+  
+  if (suggestions.length > 0) {
+    displaySuggestions(suggestions);
+  } else {
+    hideSuggestions();
+  }
+}
+
+// Display suggestions in UI
+function displaySuggestions(suggestions) {
+  const container = document.getElementById('suggestions-container');
+  if (!container) return;
+  
+  vocabularySuggestions = suggestions;
+  selectedSuggestionIndex = -1;
+  isShowingSuggestions = true;
+  
+  container.innerHTML = '';
+  container.style.display = 'block';
+  
+  suggestions.forEach((suggestion, index) => {
+    const suggestionElement = document.createElement('div');
+    suggestionElement.className = 'suggestion-item';
+    suggestionElement.setAttribute('data-index', index);
+    
+    // Calculate how long ago it was learned
+    const learnedDate = suggestion.learnedAt?.toDate ? suggestion.learnedAt.toDate() : new Date();
+    const daysAgo = Math.floor((new Date() - learnedDate) / (1000 * 60 * 60 * 24));
+    const timeAgo = daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo} days ago`;
+    
+    // Status indicator
+    const statusIcon = suggestion.isActive ? '🔥' : '💤';
+    const statusText = suggestion.isActive ? 'Active' : 'Passive';
+    const usageCount = suggestion.usageCount || 0;
+    
+    suggestionElement.innerHTML = `
+      <div class="suggestion-phrase">${suggestion.phrase}</div>
+      <div class="suggestion-meta">
+        <span class="suggestion-learned">📚 Learned ${timeAgo}</span>
+        <span class="suggestion-status">${statusIcon} ${statusText}</span>
+        <span class="suggestion-usage">Used ${usageCount}x</span>
+      </div>
+    `;
+    
+    suggestionElement.addEventListener('click', () => selectSuggestion(index));
+    suggestionElement.addEventListener('mouseenter', () => {
+      selectedSuggestionIndex = index;
+      updateSuggestionSelection();
+    });
+    
+    container.appendChild(suggestionElement);
+  });
+}
+
+// Navigate through suggestions with arrow keys
+function navigateSuggestions(direction) {
+  if (vocabularySuggestions.length === 0) return;
+  
+  selectedSuggestionIndex += direction;
+  
+  if (selectedSuggestionIndex < 0) {
+    selectedSuggestionIndex = vocabularySuggestions.length - 1;
+  } else if (selectedSuggestionIndex >= vocabularySuggestions.length) {
+    selectedSuggestionIndex = 0;
+  }
+  
+  updateSuggestionSelection();
+}
+
+// Update visual selection of suggestions
+function updateSuggestionSelection() {
+  const container = document.getElementById('suggestions-container');
+  if (!container) return;
+  
+  const items = container.querySelectorAll('.suggestion-item');
+  items.forEach((item, index) => {
+    item.classList.toggle('selected', index === selectedSuggestionIndex);
+  });
+}
+
+// Select a suggestion and insert it into the input
+function selectSuggestion(index) {
+  if (index < 0 || index >= vocabularySuggestions.length) return;
+  
+  const suggestion = vocabularySuggestions[index];
+  const messageInput = document.getElementById('messageInput');
+  const cursorPos = messageInput.selectionStart;
+  const text = messageInput.value;
+  
+  // Find the current word boundaries
+  const beforeCursor = text.substring(0, cursorPos);
+  const afterCursor = text.substring(cursorPos);
+  const wordStart = beforeCursor.search(/\S+$/);
+  const wordEnd = afterCursor.search(/\s/);
+  
+  if (wordStart !== -1) {
+    const beforeWord = text.substring(0, wordStart);
+    const afterWord = wordEnd === -1 ? '' : afterCursor.substring(wordEnd);
+    
+    // Replace the current word with the suggestion
+    messageInput.value = beforeWord + suggestion.phrase + afterWord;
+    
+    // Set cursor position after the inserted phrase
+    const newCursorPos = beforeWord.length + suggestion.phrase.length;
+    messageInput.setSelectionRange(newCursorPos, newCursorPos);
+    
+    // Mark vocabulary as actively used
+    const targetLanguage = document.getElementById('targetLanguage').value;
+    markVocabularyAsActive(suggestion.phrase, targetLanguage);
+    
+    // Show encouragement message
+    showEncouragementMessage(suggestion);
+  }
+  
+  hideSuggestions();
+  messageInput.focus();
+}
+
+// Show encouragement message when using learned vocabulary
+function showEncouragementMessage(suggestion) {
+  const isFirstTimeActive = !suggestion.isActive;
+  let message = '';
+  
+  if (isFirstTimeActive) {
+    message = `🎉 Great! You just activated "${suggestion.phrase}" from passive to active vocabulary!`;
+  } else {
+    message = `🔥 Nice use of "${suggestion.phrase}" - building your active vocabulary!`;
+  }
+  
+  // Show temporary message
+  const messageContainer = document.createElement('div');
+  messageContainer.className = 'encouragement-message';
+  messageContainer.textContent = message;
+  
+  const chatContainer = document.querySelector('.chat-messages');
+  if (chatContainer) {
+    chatContainer.appendChild(messageContainer);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+      messageContainer.remove();
+    }, 3000);
+  }
+}
+
+// Hide suggestions
+function hideSuggestions() {
+  const container = document.getElementById('suggestions-container');
+  if (container) {
+    container.style.display = 'none';
+    isShowingSuggestions = false;
+    selectedSuggestionIndex = -1;
+    vocabularySuggestions = [];
+  }
+}
+
+// Handle input focus
+function handleInputFocus() {
+  // Load vocabulary for current language if not already loaded
+  const targetLanguage = document.getElementById('targetLanguage').value;
+  if (!learnedVocabulary[targetLanguage]) {
+    loadLearnedVocabulary(targetLanguage);
+  }
+}
+
+// Handle input blur (with delay to allow clicks on suggestions)
+function handleInputBlur() {
+  setTimeout(() => {
+    hideSuggestions();
+  }, 200);
+}
+
+// Create suggestions container in DOM
+function createSuggestionsContainer() {
+  const chatInput = document.querySelector('.chat-input');
+  if (!chatInput || document.getElementById('suggestions-container')) return;
+  
+  const container = document.createElement('div');
+  container.id = 'suggestions-container';
+  container.className = 'suggestions-container';
+  container.style.display = 'none';
+  
+  chatInput.appendChild(container);
 }
 
 // Handle language change
@@ -781,6 +1153,9 @@ function selectLanguage(language) {
   
   // Clear and load conversation for this language
   loadConversationForLanguage(language);
+  
+  // Load vocabulary for this language
+  loadLearnedVocabulary(language);
   
   // Update speech recognition language if available
   if (typeof updateRecognitionLanguage === 'function') {
@@ -1391,6 +1766,11 @@ async function saveConversationSummary(summary, language, messageCount) {
       .doc(window.auth.currentUser.uid)
       .collection('summaries')
       .add(summaryData);
+
+    // Save learned vocabulary from this summary
+    if (summary.newPhrases && summary.newPhrases.length > 0) {
+      await saveLearnedVocabulary(summary.newPhrases, language);
+    }
 
     console.log('✅ Conversation summary saved');
     return true;
