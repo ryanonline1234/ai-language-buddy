@@ -391,7 +391,7 @@ async function saveLearnedVocabulary(phrases, language) {
         await batch.commit();
         console.log('✅ Learned vocabulary saved:', phrases);
         
-        // Update local cache
+        // Update local cache by reloading vocabulary for this language
         await loadLearnedVocabulary(language);
     } catch (error) {
         console.error('Error saving learned vocabulary:', error);
@@ -1029,9 +1029,11 @@ function selectSuggestion(index) {
     const newCursorPos = beforeWord.length + suggestion.phrase.length;
     messageInput.setSelectionRange(newCursorPos, newCursorPos);
     
-    // Mark vocabulary as actively used
+    // Mark vocabulary as actively used (async operation)
     const targetLanguage = document.getElementById('targetLanguage').value;
-    markVocabularyAsActive(suggestion.phrase, targetLanguage);
+    markVocabularyAsActive(suggestion.phrase, targetLanguage).catch(error => {
+      console.error('Error marking vocabulary as active:', error);
+    });
     
     // Show encouragement message
     showEncouragementMessage(suggestion);
@@ -1043,6 +1045,8 @@ function selectSuggestion(index) {
 
 // Show encouragement message when using learned vocabulary
 function showEncouragementMessage(suggestion) {
+  if (!suggestion || !suggestion.phrase) return; // Safety check
+  
   const isFirstTimeActive = !suggestion.isActive;
   let message = '';
   
