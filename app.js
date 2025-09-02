@@ -70,7 +70,7 @@ function initializeApp() {
     window.auth = firebase.auth();
 
     // Auth state listener
-    window.auth.onAuthStateChanged((user) => {
+    window.auth.onAuthStateChanged(async (user) => {
       if (user) {
         console.log('User authenticated:', user.email);
         createUserProfile(user);
@@ -80,6 +80,8 @@ function initializeApp() {
           loadConversationHistory();
           recalculateMessageCount(); // Fix any incorrect message counts
         }, 1000);
+        // Load user preferences
+        await loadUserPreferences(user);
         showChatInterface();
       } else {
         console.log('User signed out');
@@ -88,6 +90,11 @@ function initializeApp() {
     });
 
     setupEventListeners();
+    
+    // Initialize voice features, keyboard shortcuts, and UI setup
+    initializeVoiceFeatures();
+    setupKeyboardShortcuts();
+    setupUIAndGlobals();
 
   } catch (error) {
     console.error('❌ Firebase initialization error:', error);
@@ -2093,36 +2100,39 @@ function analyzePronunciation(transcript, confidence) {
   addSystemMessage(feedback);
 }
 
-// ====== INITIALIZATION ======
-
-document.addEventListener('DOMContentLoaded', function() {
+// ====== VOICE FEATURES INITIALIZATION ======
+function initializeVoiceFeatures() {
   // Check browser support
   const speechRecognitionSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
   const speechSynthesisSupported = 'speechSynthesis' in window;
   console.log('Voice Features Status:');
   console.log('- Speech Recognition:', speechRecognitionSupported ? '✅ Supported' : '❌ Not supported');
   console.log('- Text-to-Speech:', speechSynthesisSupported ? '✅ Supported' : '❌ Not supported');
-  // Load user preferences
-  if (window.auth && db) {
-    window.auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        try {
-          const userDoc = await db.collection('users').doc(user.uid).get();
-          if (userDoc.exists) {
-            const prefs = userDoc.data().preferences || {};
-            autoSpeakEnabled = prefs.autoSpeak || false;
-            // Update UI
-            if (autoSpeakEnabled) {
-              document.querySelector('[onclick="toggleAutoSpeak()"]')?.classList.add('active');
-            }
-          }
-        } catch (error) {
-          console.error('Error loading preferences:', error);
-        }
+  
+  console.log('✅ Voice Features initialized!');
+}
+
+// ====== USER PREFERENCES LOADING ======
+async function loadUserPreferences(user) {
+  if (!db || !user) return;
+  
+  try {
+    const userDoc = await db.collection('users').doc(user.uid).get();
+    if (userDoc.exists) {
+      const prefs = userDoc.data().preferences || {};
+      autoSpeakEnabled = prefs.autoSpeak || false;
+      // Update UI
+      if (autoSpeakEnabled) {
+        document.querySelector('[onclick="toggleAutoSpeak()"]')?.classList.add('active');
       }
-    });
+    }
+  } catch (error) {
+    console.error('Error loading preferences:', error);
   }
-  // Add keyboard shortcuts
+}
+
+// ====== KEYBOARD SHORTCUTS ======
+function setupKeyboardShortcuts() {
   document.addEventListener('keydown', function(e) {
     // Ctrl/Cmd + M: Toggle microphone
     if ((e.ctrlKey || e.metaKey) && e.key === 'm') {
@@ -2135,72 +2145,76 @@ document.addEventListener('DOMContentLoaded', function() {
       toggleAutoSpeak();
     }
   });
-});
+}
 
-// Add CSS animations
-const style = document.createElement('style');
-style.textContent = `
-  @keyframes slideInRight {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
-  @keyframes slideOutRight {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(100%); opacity: 0; }
-  }
-  .system-message {
-    background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
-    color: white;
-    text-align: center;
-    padding: 10px;
-    margin: 10px 0;
-    border-radius: 10px;
-  }
-  .system-content {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .message-actions {
-    display: inline-flex;
-    gap: 5px;
-    margin-left: 10px;
-  }
-  .message-favorite-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    opacity: 0.3;
-    transition: opacity 0.3s;
-  }
-  .message-favorite-btn:hover {
-    opacity: 1;
-  }
-  .achievement-notification {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
-    color: white;
-    padding: 20px;
-    border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    z-index: 10001;
-    animation: bounceIn 0.5s ease;
-  }
-  @keyframes bounceIn {
-    0% { transform: scale(0.5) rotate(-10deg); opacity: 0; }
-    50% { transform: scale(1.1) rotate(5deg); }
-    100% { transform: scale(1) rotate(0); opacity: 1; }
-  }
-`;
-document.head.appendChild(style);
+// ====== CSS AND GLOBAL SETUP ======
+function setupUIAndGlobals() {
+  // Add CSS animations
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOutRight {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(100%); opacity: 0; }
+    }
+    .system-message {
+      background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+      color: white;
+      text-align: center;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 10px;
+    }
+    .system-content {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .message-actions {
+      display: inline-flex;
+      gap: 5px;
+      margin-left: 10px;
+    }
+    .message-favorite-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      opacity: 0.3;
+      transition: opacity 0.3s;
+    }
+    .message-favorite-btn:hover {
+      opacity: 1;
+    }
+    .achievement-notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      z-index: 10001;
+      animation: bounceIn 0.5s ease;
+    }
+    @keyframes bounceIn {
+      0% { transform: scale(0.5) rotate(-10deg); opacity: 0; }
+      50% { transform: scale(1.1) rotate(5deg); }
+      100% { transform: scale(1) rotate(0); opacity: 1; }
+    }
+  `;
+  document.head.appendChild(style);
 
-console.log('✅ Dashboard and Voice Features fully loaded!');
-// Make all voice functions globally accessible (for HTML onclick)
-if (typeof window !== 'undefined') {
-  window.toggleVoiceInput = toggleVoiceInput;
-  window.togglePronunciationMode = togglePronunciationMode;
-  window.toggleAutoSpeak = toggleAutoSpeak;
-  window.toggleSlowMode = toggleSlowMode;
+  // Make all voice functions globally accessible (for HTML onclick)
+  if (typeof window !== 'undefined') {
+    window.toggleVoiceInput = toggleVoiceInput;
+    window.togglePronunciationMode = togglePronunciationMode;
+    window.toggleAutoSpeak = toggleAutoSpeak;
+    window.toggleSlowMode = toggleSlowMode;
+  }
+  
+  console.log('✅ UI styles and global functions loaded!');
 }
