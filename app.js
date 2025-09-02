@@ -492,6 +492,155 @@ async function getUserStats() {
 // ====== REMOVE DUPLICATE SENDMESSAGE WRAPPER ======
 // This wrapper was causing duplication - removed to fix the issue
 
+// ====== MESSAGE HANDLING UTILITIES ======
+// WARNING: Do not re-introduce duplicate message handling functions!
+// The functions below provide centralized, secure message handling to prevent duplication.
+
+/**
+ * Sanitizes message content to prevent XSS attacks and ensure safe display.
+ * @param {string} message - The message content to sanitize
+ * @returns {string} Sanitized message content
+ */
+function sanitizeMessageContent(message) {
+    if (!message) return '';
+    
+    // Create a temporary element to safely escape HTML
+    const temp = document.createElement('div');
+    temp.textContent = message;
+    let sanitized = temp.innerHTML;
+    
+    // Additional sanitization for common patterns
+    sanitized = sanitized.replace(/javascript:/gi, '');
+    sanitized = sanitized.replace(/data:/gi, '');
+    sanitized = sanitized.replace(/vbscript:/gi, '');
+    
+    return sanitized;
+}
+
+/**
+ * Creates a message DOM element with proper structure and event handlers.
+ * @param {string} message - The sanitized message content
+ * @param {string} sender - The message sender ('user' or 'ai')
+ * @returns {HTMLElement} The created message element
+ */
+function createMessageElement(message, sender) {
+    const messageDiv = document.createElement('div');
+    messageDiv.classList.add('message', sender);
+    messageDiv.setAttribute('data-message-id', generateMessageId());
+    
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    // Use safer event handlers instead of inline onclick
+    const messageHTML = `
+        <div class="message-content">
+            <div class="message-text">${message}</div>
+            <div class="message-actions">
+                <button class="message-speaker-btn" title="Speak this message">🔊</button>
+                <button class="message-favorite-btn" title="Add to favorites">⭐</button>
+            </div>
+            <div class="message-time">${timestamp}</div>
+        </div>
+    `;
+    
+    messageDiv.innerHTML = messageHTML;
+    
+    // Add event listeners safely
+    const speakerBtn = messageDiv.querySelector('.message-speaker-btn');
+    const favoriteBtn = messageDiv.querySelector('.message-favorite-btn');
+    
+    if (speakerBtn) {
+        speakerBtn.addEventListener('click', () => speakMessage(message, sender));
+    }
+    
+    if (favoriteBtn) {
+        favoriteBtn.addEventListener('click', () => favoriteMessage(message, sender));
+    }
+    
+    return messageDiv;
+}
+
+/**
+ * Adds a message element to the chat with smooth animation.
+ * @param {HTMLElement} chatMessages - The chat messages container
+ * @param {HTMLElement} messageDiv - The message element to add
+ */
+function addMessageWithAnimation(chatMessages, messageDiv) {
+    // Add loading class for animation
+    messageDiv.style.opacity = '0';
+    messageDiv.style.transform = 'translateY(20px)';
+    
+    chatMessages.appendChild(messageDiv);
+    
+    // Trigger smooth entrance animation
+    requestAnimationFrame(() => {
+        messageDiv.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        messageDiv.style.opacity = '1';
+        messageDiv.style.transform = 'translateY(0)';
+    });
+    
+    // Smooth scroll to bottom
+    chatMessages.scrollTo({
+        top: chatMessages.scrollHeight,
+        behavior: 'smooth'
+    });
+}
+
+/**
+ * Handles message persistence to Firestore with retry logic and error handling.
+ * @param {string} message - The message content
+ * @param {string} sender - The message sender
+ */
+async function handleMessagePersistence(message, sender) {
+    try {
+        if (!db || !window.auth.currentUser) {
+            console.warn('Database or authentication not available for message persistence');
+            return;
+        }
+        
+        // Show loading indicator
+        showSaveIndicator(true);
+        
+        const targetLanguage = document.getElementById('targetLanguage')?.value || currentActiveLanguage || 'Spanish';
+        
+        // Attempt to save with retry logic
+        await saveMessageWithRetry(message, sender, targetLanguage);
+        
+        // Show success indicator
+        showSaveIndicator(false, true);
+        
+    } catch (error) {
+        console.error('Failed to persist message:', error);
+        showSaveIndicator(false, false);
+        showErrorNotification('Failed to save message to database');
+        
+        // Queue for offline sync if network issues
+        queueOfflineMessage(message, sender);
+    }
+}
+
+/**
+ * Schedules auto-speak functionality for AI messages.
+ * @param {string} message - The message to speak
+ */
+function scheduleAutoSpeak(message) {
+    const targetLanguage = currentActiveLanguage || 'Spanish';
+    setTimeout(() => {
+        try {
+            speakText(message, targetLanguage);
+        } catch (error) {
+            console.error('Failed to auto-speak message:', error);
+        }
+    }, 500);
+}
+
+/**
+ * Generates a unique message ID for tracking and debugging.
+ * @returns {string} Unique message identifier
+ */
+function generateMessageId() {
+    return `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
 // Helper function for auth validation
 function validateAuthInput() {
   const email = document.getElementById('email').value;
@@ -662,45 +811,33 @@ function sendMessage() {
     });
 }
 
-function addMessage(message, sender, shouldAutoSpeak = true) {
-    const chatMessages = document.getElementById('chat-messages');
-    if (!chatMessages) {
-        console.error('Chat messages container not found');
-        return;
+/**
+ * Adds a message to the chat interface with proper validation, error handling, and database persistence.
+ * This is the central message handling function that prevents duplication by managing both UI display
+ * and database saves in a coordinated manner.
+ * 
+ * @param {string} message - The message content to display
+ * @param {string} sender - The sender type ('user' or 'ai')
+ * @param {boolean} [shouldAutoSpeak=true] - Whether to auto-speak AI messages and save to database.
+ *                                          Set to false when loading existing messages to prevent re-saving.
+ * @throws {Error} When message parameters are invalid or DOM manipulation fails
+ * 
+ * @example
+ * // Add a new user message (will be saved to database)
+ * addMessage("Hello!", "user");
+ * 
+ * @example
+ * // Load existing message from database (won't be re-saved)
+ * addMessage("Hello!", "user", false);
+ */
+async function addMessage(message, sender, shouldAutoSpeak = true) {
+    // Initialize MessageHandler if not already done
+    if (!window.messageHandler) {
+        window.messageHandler = new MessageHandler();
     }
     
-    const messageDiv = document.createElement('div');
-    messageDiv.classList.add('message', sender);
-    
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
-    // Add buttons to messages
-    const messageHTML = `
-        <div class="message-content">
-            <div class="message-text">${message}</div>
-            <div class="message-actions">
-                <button class="message-speaker-btn" onclick="speakMessage('${message.replace(/'/g, "\\'")}', '${sender}')">🔊</button>
-                <button class="message-favorite-btn" onclick="favoriteMessage('${message.replace(/'/g, "\\'")}', '${sender}')">⭐</button>
-            </div>
-            <div class="message-time">${timestamp}</div>
-        </div>
-    `;
-    
-    messageDiv.innerHTML = messageHTML;
-    chatMessages.appendChild(messageDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-    
-    // Save to Firestore (only if not loading from database)
-    if (db && window.auth.currentUser && shouldAutoSpeak !== false) {
-        const targetLanguage = document.getElementById('targetLanguage')?.value || currentActiveLanguage || 'Spanish';
-        saveMessageToFirestore(message, sender, targetLanguage);
-    }
-    
-    // Auto-speak if enabled and allowed
-    if (sender === 'ai' && autoSpeakEnabled && shouldAutoSpeak) {
-        const targetLanguage = currentActiveLanguage || 'Spanish';
-        setTimeout(() => speakText(message, targetLanguage), 500);
-    }
+    // Use the enhanced MessageHandler for all message operations
+    return await window.messageHandler.addMessage(message, sender, shouldAutoSpeak);
 }
 
 // Legacy function for compatibility
@@ -2509,6 +2646,18 @@ function setupUIAndGlobals() {
       from { transform: translateX(0); opacity: 1; }
       to { transform: translateX(100%); opacity: 0; }
     }
+    @keyframes fadeInUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
     .system-message {
       background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
       color: white;
@@ -2567,3 +2716,396 @@ function setupUIAndGlobals() {
   
   console.log('✅ UI styles and global functions loaded!');
 }
+
+// ====== ENHANCED MESSAGE HANDLING SUPPORT FUNCTIONS ======
+
+/**
+ * Shows or hides the save indicator for message persistence feedback.
+ * @param {boolean} isLoading - Whether to show loading state
+ * @param {boolean} success - Whether the operation was successful (only used when not loading)
+ */
+function showSaveIndicator(isLoading, success = null) {
+    let indicator = document.getElementById('save-indicator');
+    
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'save-indicator';
+        indicator.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            z-index: 10000;
+            transition: all 0.3s ease;
+            opacity: 0;
+            pointer-events: none;
+        `;
+        document.body.appendChild(indicator);
+    }
+    
+    if (isLoading) {
+        indicator.textContent = '💾 Saving message...';
+        indicator.style.background = '#3498db';
+        indicator.style.color = 'white';
+        indicator.style.opacity = '1';
+    } else if (success === true) {
+        indicator.textContent = '✅ Message saved';
+        indicator.style.background = '#27ae60';
+        indicator.style.color = 'white';
+        indicator.style.opacity = '1';
+        setTimeout(() => {
+            indicator.style.opacity = '0';
+        }, 2000);
+    } else if (success === false) {
+        indicator.textContent = '❌ Save failed';
+        indicator.style.background = '#e74c3c';
+        indicator.style.color = 'white';
+        indicator.style.opacity = '1';
+        setTimeout(() => {
+            indicator.style.opacity = '0';
+        }, 3000);
+    } else {
+        indicator.style.opacity = '0';
+    }
+}
+
+/**
+ * Shows error notifications to the user with auto-dismiss.
+ * @param {string} message - The error message to display
+ * @param {number} duration - How long to show the notification (ms)
+ */
+function showErrorNotification(message, duration = 5000) {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #e74c3c;
+        color: white;
+        padding: 16px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        z-index: 10001;
+        max-width: 300px;
+        font-size: 14px;
+        line-height: 1.4;
+        animation: slideInRight 0.3s ease;
+    `;
+    
+    notification.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span>⚠️</span>
+            <span>${message}</span>
+            <button onclick="this.parentElement.parentElement.remove()" 
+                    style="background: none; border: none; color: white; margin-left: auto; cursor: pointer; font-size: 16px;">×</button>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after duration
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.style.animation = 'slideOutRight 0.3s ease';
+            setTimeout(() => notification.remove(), 300);
+        }
+    }, duration);
+}
+
+/**
+ * Enhanced saveMessageToFirestore with retry logic and exponential backoff.
+ * @param {string} message - The message content
+ * @param {string} sender - The message sender
+ * @param {string} targetLanguage - The target language
+ * @param {number} maxRetries - Maximum number of retry attempts
+ */
+async function saveMessageWithRetry(message, sender, targetLanguage, maxRetries = 3) {
+    let retryCount = 0;
+    let lastError;
+    
+    while (retryCount <= maxRetries) {
+        try {
+            // Check network connectivity before attempting save
+            if (!navigator.onLine) {
+                throw new Error('No network connection available');
+            }
+            
+            // Validate authentication state
+            if (!window.auth.currentUser) {
+                throw new Error('User not authenticated');
+            }
+            
+            // Attempt the save operation
+            await saveMessageToFirestore(message, sender, targetLanguage);
+            
+            // Log successful save for monitoring
+            logMessageOperation('saved', message, sender, true, retryCount);
+            return; // Success, exit retry loop
+            
+        } catch (error) {
+            lastError = error;
+            retryCount++;
+            
+            if (retryCount <= maxRetries) {
+                // Exponential backoff: wait 1s, 2s, 4s for retries
+                const delay = Math.pow(2, retryCount - 1) * 1000;
+                console.warn(`Save attempt ${retryCount} failed, retrying in ${delay}ms:`, error.message);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+    
+    // All retries failed
+    throw new Error(`Failed to save message after ${maxRetries} attempts: ${lastError.message}`);
+}
+
+/**
+ * Queues messages for offline sync when Firestore is unavailable.
+ * @param {string} message - The message content
+ * @param {string} sender - The message sender
+ */
+function queueOfflineMessage(message, sender) {
+    try {
+        const offlineQueue = JSON.parse(localStorage.getItem('offlineMessageQueue') || '[]');
+        const queuedMessage = {
+            id: generateMessageId(),
+            message,
+            sender,
+            targetLanguage: document.getElementById('targetLanguage')?.value || currentActiveLanguage || 'Spanish',
+            timestamp: Date.now(),
+            retryCount: 0
+        };
+        
+        offlineQueue.push(queuedMessage);
+        localStorage.setItem('offlineMessageQueue', JSON.stringify(offlineQueue));
+        
+        console.log('Message queued for offline sync:', queuedMessage.id);
+        showOfflineQueueNotification(offlineQueue.length);
+        
+    } catch (error) {
+        console.error('Failed to queue offline message:', error);
+    }
+}
+
+/**
+ * Shows notification about offline message queue status.
+ * @param {number} queueSize - Number of messages in queue
+ */
+function showOfflineQueueNotification(queueSize) {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        background: #f39c12;
+        color: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 12px;
+        z-index: 10000;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    `;
+    
+    notification.textContent = `📤 ${queueSize} message(s) queued for sync`;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => notification.remove(), 3000);
+}
+
+/**
+ * Processes the offline message queue when connection is restored.
+ */
+async function processOfflineQueue() {
+    try {
+        const offlineQueue = JSON.parse(localStorage.getItem('offlineMessageQueue') || '[]');
+        if (offlineQueue.length === 0) return;
+        
+        console.log(`Processing ${offlineQueue.length} offline messages...`);
+        const processed = [];
+        
+        for (const queuedMessage of offlineQueue) {
+            try {
+                await saveMessageWithRetry(
+                    queuedMessage.message, 
+                    queuedMessage.sender, 
+                    queuedMessage.targetLanguage, 
+                    2 // Reduced retries for queued messages
+                );
+                processed.push(queuedMessage.id);
+            } catch (error) {
+                console.error('Failed to sync queued message:', queuedMessage.id, error);
+                // Keep failed messages in queue for next attempt
+            }
+        }
+        
+        // Remove successfully processed messages from queue
+        const remainingQueue = offlineQueue.filter(msg => !processed.includes(msg.id));
+        localStorage.setItem('offlineMessageQueue', JSON.stringify(remainingQueue));
+        
+        if (processed.length > 0) {
+            console.log(`Successfully synced ${processed.length} offline messages`);
+        }
+        
+    } catch (error) {
+        console.error('Error processing offline queue:', error);
+    }
+}
+
+/**
+ * Logs message operations for debugging and monitoring.
+ * @param {string} operation - The operation type ('added', 'saved', 'failed', etc.)
+ * @param {string} message - The message content (truncated for logging)
+ * @param {string} sender - The message sender
+ * @param {boolean} autoSpeak - Whether auto-speak was enabled
+ * @param {number} retryCount - Number of retries (if applicable)
+ */
+function logMessageOperation(operation, message, sender, autoSpeak, retryCount = 0) {
+    const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    if (isDevelopment) {
+        const truncatedMessage = message.length > 50 ? message.substring(0, 50) + '...' : message;
+        const logData = {
+            operation,
+            sender,
+            messagePreview: truncatedMessage,
+            autoSpeak,
+            retryCount,
+            timestamp: new Date().toISOString()
+        };
+        
+        console.log(`[MessageHandler] ${operation}:`, logData);
+    }
+}
+
+/**
+ * Tracks message errors for monitoring and debugging.
+ * @param {string} functionName - The function where the error occurred
+ * @param {Error} error - The error object
+ * @param {Object} context - Additional context about the error
+ */
+function trackMessageError(functionName, error, context = {}) {
+    const errorData = {
+        function: functionName,
+        error: error.message,
+        stack: error.stack,
+        context,
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        url: window.location.href
+    };
+    
+    // Log to console for development
+    console.error(`[MessageHandler Error] ${functionName}:`, errorData);
+    
+    // In production, this could send to an error tracking service
+    // Example: sendToErrorTracking(errorData);
+}
+
+// ====== DEBOUNCING AND RATE LIMITING ======
+
+/**
+ * Debounced message sending to prevent spam and improve performance.
+ */
+const debouncedSendMessage = debounce(function() {
+    // Get the original sendMessage function
+    const messageInput = document.getElementById('messageInput');
+    if (messageInput && messageInput.value.trim()) {
+        // Call the original sendMessage logic
+        sendMessageInternal();
+    }
+}, 300); // 300ms debounce delay
+
+/**
+ * Internal message sending function with rate limiting.
+ */
+function sendMessageInternal() {
+    // Check rate limiting
+    if (!checkRateLimit()) {
+        showErrorNotification('Please wait before sending another message');
+        return;
+    }
+    
+    // Call the original sendMessage function
+    if (typeof sendMessage === 'function') {
+        sendMessage();
+    }
+}
+
+/**
+ * Rate limiting for message sending.
+ * @returns {boolean} Whether the action is allowed
+ */
+function checkRateLimit() {
+    const now = Date.now();
+    const rateLimit = getRateLimitData();
+    
+    // Remove timestamps older than 1 minute
+    rateLimit.timestamps = rateLimit.timestamps.filter(timestamp => now - timestamp < 60000);
+    
+    // Check if under limit (max 20 messages per minute)
+    if (rateLimit.timestamps.length >= 20) {
+        return false;
+    }
+    
+    // Add current timestamp
+    rateLimit.timestamps.push(now);
+    localStorage.setItem('messageSendRateLimit', JSON.stringify(rateLimit));
+    
+    return true;
+}
+
+/**
+ * Gets rate limit data from localStorage.
+ * @returns {Object} Rate limit data
+ */
+function getRateLimitData() {
+    try {
+        return JSON.parse(localStorage.getItem('messageSendRateLimit') || '{"timestamps":[]}');
+    } catch {
+        return { timestamps: [] };
+    }
+}
+
+/**
+ * Generic debounce utility function.
+ * @param {Function} func - Function to debounce
+ * @param {number} delay - Delay in milliseconds
+ * @returns {Function} Debounced function
+ */
+function debounce(func, delay) {
+    let timeoutId;
+    return function(...args) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => func.apply(this, args), delay);
+    };
+}
+
+// ====== INITIALIZATION AND EVENT LISTENERS ======
+
+// Set up offline/online event listeners for queue processing
+window.addEventListener('online', () => {
+    console.log('Connection restored, processing offline queue...');
+    processOfflineQueue();
+});
+
+window.addEventListener('offline', () => {
+    console.log('Connection lost, messages will be queued for later sync');
+});
+
+// Set up keyboard shortcuts
+document.addEventListener('keydown', (event) => {
+    // Ctrl+Enter to send message
+    if (event.ctrlKey && event.key === 'Enter') {
+        event.preventDefault();
+        const messageInput = document.getElementById('messageInput');
+        if (messageInput && messageInput.value.trim()) {
+            debouncedSendMessage();
+        }
+    }
+});
+
+console.log('✅ Enhanced message handling system loaded with error handling, retry logic, and performance optimizations!');
