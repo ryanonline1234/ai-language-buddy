@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quick Message Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #chat-messages { border: 1px solid #ccc; height: 300px; overflow-y: auto; padding: 10px; margin: 10px 0; }
+        .message { margin: 10px 0; padding: 10px; border-radius: 8px; }
+        .message.user { background: #007bff; color: white; margin-left: 20%; }
+        .message.ai { background: #28a745; color: white; margin-right: 20%; }
+        .test-results { background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        button { margin: 5px; padding: 8px 15px; }
+    </style>
+</head>
+<body>
+    <h1>Enhanced Message Handling Test</h1>
+    
+    <div id="chat-messages"></div>
+    
+    <div>
+        <button onclick="testBasicMessage()">Test Basic Message</button>
+        <button onclick="testErrorHandling()">Test Error Handling</button>
+        <button onclick="testSecurity()">Test Security</button>
+        <button onclick="clearMessages()">Clear Messages</button>
+    </div>
+    
+    <div class="test-results">
+        <h3>Test Results:</h3>
+        <div id="results"></div>
+    </div>
+    
+    <!-- Hidden elements needed by the system -->
+    <div style="display: none;">
+        <select id="targetLanguage"><option value="Spanish">Spanish</option></select>
+    </div>
+    
+    <script>
+        // Mock globals for testing
+        window.db = null;
+        window.auth = { currentUser: null };
+        window.autoSpeakEnabled = false;
+        window.currentActiveLanguage = 'Spanish';
+        
+        // Mock functions
+        function saveMessageToFirestore() { return Promise.resolve(); }
+        function speakText() { console.log('Speaking...'); }
+        function speakMessage() { console.log('Speaking message...'); }
+        function favoriteMessage() { console.log('Favoriting message...'); }
+        
+        let testResults = [];
+        
+        function logResult(test, success, message) {
+            testResults.push({ test, success, message, timestamp: new Date().toLocaleTimeString() });
+            updateResults();
+        }
+        
+        function updateResults() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = testResults.map(r => 
+                `<div style="color: ${r.success ? 'green' : 'red'};">
+                    [${r.timestamp}] ${r.test}: ${r.success ? '✅' : '❌'} ${r.message}
+                </div>`
+            ).join('');
+        }
+        
+        async function testBasicMessage() {
+            try {
+                await addMessage("Hello, this is a test message!", "user");
+                logResult("Basic Message", true, "User message added successfully");
+                
+                await addMessage("AI response test message", "ai");
+                logResult("AI Message", true, "AI message added successfully");
+                
+            } catch (error) {
+                logResult("Basic Message", false, error.message);
+            }
+        }
+        
+        async function testErrorHandling() {
+            try {
+                await addMessage("", "user");
+                logResult("Empty Message", false, "Should have thrown error");
+            } catch (error) {
+                logResult("Empty Message", true, "Correctly rejected empty message");
+            }
+            
+            try {
+                await addMessage("Test", "invalid");
+                logResult("Invalid Sender", false, "Should have thrown error");
+            } catch (error) {
+                logResult("Invalid Sender", true, "Correctly rejected invalid sender");
+            }
+        }
+        
+        async function testSecurity() {
+            const xssTest = '<script>alert("XSS")</script>Hello';
+            try {
+                await addMessage(xssTest, "user");
+                
+                // Check if the script tag was sanitized
+                const messages = document.querySelectorAll('.message-text');
+                const lastMessage = messages[messages.length - 1];
+                
+                if (lastMessage && !lastMessage.innerHTML.includes('<script>')) {
+                    logResult("XSS Prevention", true, "Script tags properly sanitized");
+                } else {
+                    logResult("XSS Prevention", false, "Script tags not sanitized");
+                }
+                
+            } catch (error) {
+                logResult("XSS Prevention", false, error.message);
+            }
+        }
+        
+        function clearMessages() {
+            document.getElementById('chat-messages').innerHTML = '';
+            testResults = [];
+            updateResults();
+        }
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Test page loaded, ready for testing');
+        });
+    </script>
+    
+    <!-- Load the enhanced system -->
+    <script src="message-handler.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
