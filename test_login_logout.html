@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login/Logout Message Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-results {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        .test-step {
+            margin: 10px 0;
+            padding: 10px;
+            border-left: 3px solid #007bff;
+            background-color: #f8f9fa;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .log {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            margin: 10px 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>AI Language Buddy - Login/Logout Message Duplication Test</h1>
+    
+    <div class="test-results info">
+        <h3>📋 Test Scenario</h3>
+        <p>This test verifies that messages are not duplicated when logging out and logging back in.</p>
+        <ol>
+            <li>Simulate adding messages to the conversation</li>
+            <li>Simulate logout (clear conversation history)</li>
+            <li>Simulate login (reload conversation from "database")</li>
+            <li>Verify messages appear only once in UI</li>
+            <li>Verify database save operations are correct</li>
+        </ol>
+    </div>
+
+    <div class="test-step">
+        <button onclick="runTest()">🔬 Run Test</button>
+        <button onclick="clearResults()">🧹 Clear Results</button>
+    </div>
+
+    <div id="test-log" class="log"></div>
+    <div id="test-results"></div>
+
+    <script>
+        // Mock the key functions from app.js to test the logic
+        let mockDatabase = [];
+        let mockChatMessages = [];
+        let mockConversationHistory = {
+            'Spanish': []
+        };
+        let mockCurrentUser = { uid: 'test-user' };
+        let logOutput = [];
+
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logOutput.push(`[${timestamp}] ${message}`);
+            document.getElementById('test-log').innerHTML = logOutput.join('<br>');
+        }
+
+        function clearResults() {
+            logOutput = [];
+            mockDatabase = [];
+            mockChatMessages = [];
+            mockConversationHistory = { 'Spanish': [] };
+            document.getElementById('test-log').innerHTML = '';
+            document.getElementById('test-results').innerHTML = '';
+        }
+
+        // Mock addMessage function (simplified version from app.js)
+        function addMessage(message, sender, shouldAutoSpeak = true, shouldSaveToDatabase = true) {
+            log(`📝 addMessage called: "${message}" from ${sender}, saveDB: ${shouldSaveToDatabase}`);
+            
+            // Add to UI (mock)
+            mockChatMessages.push({ message, sender, timestamp: new Date() });
+            log(`📱 UI updated: ${mockChatMessages.length} messages in chat`);
+            
+            // Save to database if requested
+            if (shouldSaveToDatabase && mockCurrentUser) {
+                mockDatabase.push({ message, sender, timestamp: new Date(), language: 'Spanish' });
+                log(`💾 Saved to database: ${mockDatabase.length} total entries`);
+            } else if (!shouldSaveToDatabase) {
+                log(`💾 Database save skipped (shouldSaveToDatabase = false)`);
+            }
+        }
+
+        // Mock displayMessage function (from app.js)
+        function displayMessage(message, sender) {
+            log(`🔄 displayMessage called: "${message}" from ${sender}`);
+            addMessage(message, sender, false, false);
+        }
+
+        // Mock loadConversationForLanguage function
+        function loadConversationForLanguage(language) {
+            log(`📂 Loading conversation for ${language}`);
+            
+            // Clear UI
+            mockChatMessages = [];
+            log(`🧹 Chat UI cleared`);
+            
+            // Load messages from conversation history
+            if (mockConversationHistory[language] && mockConversationHistory[language].length > 0) {
+                mockConversationHistory[language].forEach(msgData => {
+                    displayMessage(msgData.message, msgData.sender);
+                });
+            }
+            log(`✅ Loaded ${mockConversationHistory[language]?.length || 0} messages from history`);
+        }
+
+        // Mock signOut function
+        function signOut() {
+            log(`🚪 User signing out...`);
+            mockConversationHistory = { 'Spanish': [] };
+            mockChatMessages = [];
+            log(`🧹 Conversation history and UI cleared`);
+        }
+
+        // Mock loadConversationHistory function
+        function loadConversationHistory() {
+            log(`📚 Loading conversation history from database...`);
+            
+            // Simulate loading from database
+            const messagesByLanguage = {};
+            mockDatabase.forEach(dbEntry => {
+                const language = dbEntry.language || 'Spanish';
+                if (!messagesByLanguage[language]) {
+                    messagesByLanguage[language] = [];
+                }
+                messagesByLanguage[language].push({
+                    message: dbEntry.message,
+                    sender: dbEntry.sender
+                });
+            });
+            
+            // Store in conversation history
+            Object.keys(messagesByLanguage).forEach(language => {
+                mockConversationHistory[language] = messagesByLanguage[language];
+            });
+            
+            log(`📋 Loaded ${mockDatabase.length} messages from database into conversation history`);
+            
+            // Load conversation for current language
+            loadConversationForLanguage('Spanish');
+        }
+
+        async function runTest() {
+            clearResults();
+            log('🚀 Starting Login/Logout Message Duplication Test');
+            log('='.repeat(50));
+
+            // Step 1: Simulate normal conversation
+            log('📝 STEP 1: Simulating normal conversation...');
+            addMessage('Hello!', 'user');
+            addMessage('¡Hola! ¿Cómo estás?', 'ai');
+            addMessage('I am good, thanks!', 'user');
+            addMessage('¡Excelente! ¿Qué quieres aprender hoy?', 'ai');
+            
+            log(`📊 After conversation: ${mockChatMessages.length} UI messages, ${mockDatabase.length} DB entries`);
+            await sleep(500);
+
+            // Step 2: Simulate logout
+            log('');
+            log('🚪 STEP 2: Simulating logout...');
+            signOut();
+            log(`📊 After logout: ${mockChatMessages.length} UI messages, ${mockDatabase.length} DB entries`);
+            await sleep(500);
+
+            // Step 3: Simulate login
+            log('');
+            log('🔑 STEP 3: Simulating login and conversation history load...');
+            loadConversationHistory();
+            log(`📊 After login: ${mockChatMessages.length} UI messages, ${mockDatabase.length} DB entries`);
+            await sleep(500);
+
+            // Step 4: Add new message after login
+            log('');
+            log('📝 STEP 4: Adding new message after login...');
+            const initialDbCount = mockDatabase.length;
+            addMessage('How do you say "good morning"?', 'user');
+            addMessage('Se dice "buenos días"', 'ai');
+            const finalDbCount = mockDatabase.length;
+            
+            log(`📊 After new messages: ${mockChatMessages.length} UI messages, ${mockDatabase.length} DB entries`);
+            log(`📊 Database grew by ${finalDbCount - initialDbCount} entries (should be 2)`);
+
+            // Step 5: Analysis
+            log('');
+            log('🔍 STEP 5: Analysis and Results');
+            log('='.repeat(50));
+            
+            const results = [];
+            const duplicateMessages = checkForDuplicates(mockChatMessages);
+            
+            if (duplicateMessages.length === 0) {
+                results.push('✅ No duplicate messages in UI');
+            } else {
+                results.push(`❌ Found ${duplicateMessages.length} duplicate messages in UI`);
+            }
+            
+            if (mockChatMessages.length === 6) {
+                results.push('✅ Correct number of messages in UI (6)');
+            } else {
+                results.push(`❌ Incorrect number of messages in UI (expected 6, got ${mockChatMessages.length})`);
+            }
+            
+            if (mockDatabase.length === 6) {
+                results.push('✅ Correct number of entries in database (6)');
+            } else {
+                results.push(`❌ Incorrect number of entries in database (expected 6, got ${mockDatabase.length})`);
+            }
+            
+            if (finalDbCount - initialDbCount === 2) {
+                results.push('✅ Only new messages were saved to database after login');
+            } else {
+                results.push(`❌ Incorrect database saves after login (expected 2, got ${finalDbCount - initialDbCount})`);
+            }
+
+            displayResults(results);
+        }
+
+        function checkForDuplicates(messages) {
+            const seen = new Set();
+            const duplicates = [];
+            
+            messages.forEach((msg, index) => {
+                const key = `${msg.message}_${msg.sender}`;
+                if (seen.has(key)) {
+                    duplicates.push({index, message: msg.message, sender: msg.sender});
+                } else {
+                    seen.add(key);
+                }
+            });
+            
+            return duplicates;
+        }
+
+        function displayResults(results) {
+            const resultsDiv = document.getElementById('test-results');
+            const hasErrors = results.some(r => r.includes('❌'));
+            
+            let html = `<div class="test-results ${hasErrors ? 'error' : 'success'}">`;
+            html += `<h3>${hasErrors ? '❌ Test Failed' : '✅ Test Passed'}</h3>`;
+            html += '<ul>';
+            results.forEach(result => {
+                html += `<li>${result}</li>`;
+            });
+            html += '</ul>';
+            html += '</div>';
+            
+            resultsDiv.innerHTML = html;
+            
+            log('');
+            log('📋 FINAL RESULTS:');
+            results.forEach(result => log(result));
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+    </script>
+</body>
+</html>

@@ -78,7 +78,8 @@ function initializeApp() {
     // Auth state listener
     window.auth.onAuthStateChanged(async (user) => {
       if (user) {
-        console.log('User authenticated:', user.email);
+        console.log('🔑 User authenticated:', user.email);
+        console.log('📚 Loading user data and conversation history...');
         createUserProfile(user);
         updateStreak();
         initializeSidebar(); // Initialize sidebar
@@ -91,7 +92,7 @@ function initializeApp() {
         await loadUserPreferences(user);
         showChatInterface();
       } else {
-        console.log('User signed out');
+        console.log('🚪 User signed out - showing auth interface');
         showAuthInterface();
       }
     });
@@ -584,6 +585,7 @@ async function signOut() {
   
   window.auth.signOut().then(() => {
     console.log('✅ User signed out');
+    console.log('🧹 Clearing conversation history to prevent duplication on re-login...');
     conversationHistory = []; // Clear conversation when signing out
     // Clear conversation history by language to prevent duplication on re-login
     conversationHistoryByLanguage = {
@@ -597,7 +599,10 @@ async function signOut() {
       'Chinese': []
     };
     const chatMessages = document.getElementById('chat-messages');
-    if (chatMessages) chatMessages.innerHTML = '';
+    if (chatMessages) {
+      chatMessages.innerHTML = '';
+      console.log('🧹 Chat UI cleared');
+    }
     showAuthInterface();
   }).catch((error) => {
     console.error('❌ Sign out error:', error);
@@ -664,6 +669,8 @@ function sendMessage() {
 }
 
 function addMessage(message, sender, shouldAutoSpeak = true, shouldSaveToDatabase = true) {
+    console.log(`🔧 addMessage called: "${message.substring(0, 50)}..." from ${sender}, autoSpeak: ${shouldAutoSpeak}, saveDB: ${shouldSaveToDatabase}`);
+    
     const chatMessages = document.getElementById('chat-messages');
     if (!chatMessages) {
         console.error('Chat messages container not found');
@@ -700,7 +707,10 @@ function addMessage(message, sender, shouldAutoSpeak = true, shouldSaveToDatabas
     // Save to Firestore only for new messages (not loaded ones)
     if (shouldSaveToDatabase && db && window.auth.currentUser) {
         const targetLanguage = document.getElementById('targetLanguage')?.value || 'Spanish';
+        console.log(`💾 Saving message to Firestore: "${message.substring(0, 30)}..." (${sender}) in ${targetLanguage}`);
         saveMessageToFirestore(message, sender, targetLanguage);
+    } else if (!shouldSaveToDatabase) {
+        console.log(`💾 Database save skipped (shouldSaveToDatabase = false) for: "${message.substring(0, 30)}..." (${sender})`);
     }
 }
 
@@ -1194,6 +1204,7 @@ function saveCurrentConversationState() {
 
 // Display message without saving to Firestore (for loading existing messages)
 function displayMessage(message, sender) {
+    console.log(`🔄 displayMessage called: loading existing message "${message.substring(0, 30)}..." from ${sender}`);
     // Use addMessage with auto-speak and database save disabled for loaded messages
     addMessage(message, sender, false, false);
 }
@@ -1202,14 +1213,21 @@ function loadConversationForLanguage(language) {
   const chatContainer = document.getElementById('chat-messages');
   if (!chatContainer) return;
   
+  console.log(`📂 Loading conversation for ${language}...`);
+  
   // Clear the chat container
   chatContainer.innerHTML = '';
+  console.log(`🧹 Chat container cleared`);
   
   // Load messages for this language from the stored conversation history
   if (conversationHistoryByLanguage[language] && conversationHistoryByLanguage[language].length > 0) {
+    console.log(`📋 Loading ${conversationHistoryByLanguage[language].length} messages from conversation history`);
     conversationHistoryByLanguage[language].forEach(msgData => {
       displayMessage(msgData.message, msgData.sender);
     });
+    console.log(`✅ Finished loading conversation for ${language}`);
+  } else {
+    console.log(`📋 No conversation history found for ${language}`);
   }
 }
 
