@@ -491,18 +491,7 @@ async function getUserStats() {
 
 // ====== UPDATE YOUR EXISTING FUNCTIONS ======
 // Modify your existing sendMessage function to save to Firestore
-const originalSendMessage = sendMessage;
-window.sendMessage = async function() {
-    const messageInput = document.getElementById('messageInput');
-    const message = messageInput.value.trim();
-    const targetLanguage = document.getElementById('targetLanguage').value;
-    if (message) {
-        // Save to Firestore
-        await saveMessageToFirestore(message, 'user', targetLanguage);
-    }
-    // Call original function
-    originalSendMessage();
-};
+
 
 // Helper function for auth validation
 function validateAuthInput() {
@@ -674,7 +663,7 @@ function sendMessage() {
     });
 }
 
-function addMessage(message, sender, shouldAutoSpeak = true) {
+function addMessage(message, sender, shouldAutoSpeak = true, shouldSaveToDatabase = true) {
     const chatMessages = document.getElementById('chat-messages');
     if (!chatMessages) {
         console.error('Chat messages container not found');
@@ -706,6 +695,12 @@ function addMessage(message, sender, shouldAutoSpeak = true) {
     if (sender === 'ai' && autoSpeakEnabled && shouldAutoSpeak) {
         const targetLanguage = currentActiveLanguage || 'Spanish';
         setTimeout(() => speakText(message, targetLanguage), 500);
+    }
+    
+    // Save to Firestore only for new messages (not loaded ones)
+    if (shouldSaveToDatabase && db && window.auth.currentUser) {
+        const targetLanguage = document.getElementById('targetLanguage')?.value || 'Spanish';
+        saveMessageToFirestore(message, sender, targetLanguage);
     }
 }
 
@@ -1199,8 +1194,8 @@ function saveCurrentConversationState() {
 
 // Display message without saving to Firestore (for loading existing messages)
 function displayMessage(message, sender) {
-    // Use addMessage with auto-speak disabled for loaded messages
-    addMessage(message, sender, false);
+    // Use addMessage with auto-speak and database save disabled for loaded messages
+    addMessage(message, sender, false, false);
 }
 
 function loadConversationForLanguage(language) {
@@ -2361,35 +2356,7 @@ function togglePronunciationMode() {
 
 // ====== ENHANCED MESSAGE FUNCTIONS ======
 
-window.addMessage = function(message, sender) {
-    const chatMessages = document.getElementById('chat-messages');
-    const messageDiv = document.createElement('div');
-    messageDiv.classList.add('message', sender);
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    // Add buttons to messages
-    const messageHTML = `
-        <div class="message-content">
-            <div class="message-text">${message}</div>
-            <div class="message-actions">
-                <button class="message-speaker-btn" onclick="speakMessage('${message.replace(/'/g, "\\'")}', '${sender}')">🔊</button>
-                <button class="message-favorite-btn" onclick="favoriteMessage('${message.replace(/'/g, "\\'")}', '${sender}')">⭐</button>
-            </div>
-            <div class="message-time">${timestamp}</div>
-        </div>
-    `;
-    messageDiv.innerHTML = messageHTML;
-    chatMessages.appendChild(messageDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-    // Auto-speak if enabled
-    if (sender === 'ai' && autoSpeakEnabled) {
-        const targetLanguage = document.getElementById('targetLanguage')?.value || 'Spanish';
-        setTimeout(() => speakText(message, targetLanguage), 500);
-    }
-    if (db && window.auth.currentUser) {
-        const targetLanguage = document.getElementById('targetLanguage')?.value || 'Spanish';
-        saveMessageToFirestore(message, sender, targetLanguage);
-    }
-};
+
 
 // Speak a specific message
 function speakMessage(message, sender) {
