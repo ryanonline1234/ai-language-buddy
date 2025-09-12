@@ -849,7 +849,14 @@ async function clearChatFromDatabase(language) {
     console.log(`✅ Successfully deleted ${snapshot.docs.length} messages for ${language} from database`);
     
     // Show success message to user
-    addSystemMessage(`✅ Successfully cleared ${snapshot.docs.length} ${language} messages permanently`);
+    const exchangeCount = Math.ceil(snapshot.docs.length / 2); // Approximate conversation exchanges
+    if (snapshot.docs.length === 1) {
+        addSystemMessage(`✅ Successfully cleared 1 ${language} message permanently`);
+    } else if (snapshot.docs.length === 2) {
+        addSystemMessage(`✅ Successfully cleared 1 ${language} conversation exchange (2 messages) permanently`);
+    } else {
+        addSystemMessage(`✅ Successfully cleared ${snapshot.docs.length} ${language} messages (≈${exchangeCount} exchanges) permanently`);
+    }
     
   } catch (error) {
     console.error('❌ Error clearing chat from database:', error);
