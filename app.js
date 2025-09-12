@@ -567,7 +567,7 @@ async function signOut() {
   
   // Check if there are conversations to summarize before signing out
   const languagesWithMessages = Object.keys(conversationHistoryByLanguage).filter(
-    lang => conversationHistoryByLanguage[lang] && conversationHistoryByLanguage[lang].length >= 4
+    lang => conversationHistoryByLanguage[lang] && conversationHistoryByLanguage[lang].length >= 2
   );
   
   if (languagesWithMessages.length > 0) {
@@ -691,6 +691,20 @@ function addMessage(message, sender, shouldAutoSpeak = true, shouldSaveToDatabas
     chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
     
+    // Update conversation history for current language
+    if (currentActiveLanguage) {
+        if (!conversationHistoryByLanguage[currentActiveLanguage]) {
+            conversationHistoryByLanguage[currentActiveLanguage] = [];
+        }
+        conversationHistoryByLanguage[currentActiveLanguage].push({
+            message: message,
+            sender: sender
+        });
+        
+        // Update summary button state
+        updateSummaryButtonState();
+    }
+    
     // Auto-speak if enabled and allowed
     if (sender === 'ai' && autoSpeakEnabled && shouldAutoSpeak) {
         const targetLanguage = currentActiveLanguage || 'Spanish';
@@ -702,6 +716,30 @@ function addMessage(message, sender, shouldAutoSpeak = true, shouldSaveToDatabas
         const targetLanguage = document.getElementById('targetLanguage')?.value || 'Spanish';
         saveMessageToFirestore(message, sender, targetLanguage);
     }
+}
+
+// Update summary button state based on message count
+function updateSummaryButtonState() {
+    // Target specific button by ID and any other summary buttons
+    const summaryButtons = [
+        document.getElementById('summary-button'),
+        ...document.querySelectorAll('button[onclick="generateAndSaveSummary()"]')
+    ].filter(button => button !== null);
+    
+    const currentMessages = conversationHistoryByLanguage[currentActiveLanguage] || [];
+    const hasEnoughMessages = currentMessages.length >= 2;
+    
+    summaryButtons.forEach(button => {
+        if (hasEnoughMessages) {
+            button.disabled = false;
+            button.style.opacity = '1';
+            button.title = `Generate summary (${currentMessages.length} messages)`;
+        } else {
+            button.disabled = true;
+            button.style.opacity = '0.5';
+            button.title = `Need at least 2 messages to generate summary (${currentMessages.length}/2)`;
+        }
+    });
 }
 
 // Legacy function for compatibility
@@ -747,6 +785,9 @@ function showChatInterface() {
   setTimeout(() => {
     const messageInput = document.getElementById('messageInput');
     if (messageInput) messageInput.focus();
+    
+    // Update summary button state
+    updateSummaryButtonState();
   }, 100);
 }
 
@@ -766,7 +807,7 @@ function showAuthInterface() {
 async function clearChat() {
   // Generate summary before clearing if there are enough messages
   const currentMessages = conversationHistoryByLanguage[currentActiveLanguage] || [];
-  let shouldGenerateSummary = currentMessages.length >= 4; // At least 2 exchanges
+  let shouldGenerateSummary = currentMessages.length >= 2; // At least 1 exchange (2 messages)
   
   if (shouldGenerateSummary) {
     const generateSummary = confirm(
@@ -806,6 +847,9 @@ async function clearChat() {
   
   // Delete messages from Firebase for the current language
   await clearChatFromDatabase(currentActiveLanguage);
+  
+  // Update summary button state (should be disabled now)
+  updateSummaryButtonState();
   
   console.log('✅ Chat cleared permanently for', currentActiveLanguage);
 }
@@ -1168,6 +1212,9 @@ function selectLanguage(language) {
     updateRecognitionLanguage();
   }
   
+  // Update summary button state for the new language
+  updateSummaryButtonState();
+  
   console.log(`🌍 Switched to ${language}`);
 }
 
@@ -1211,6 +1258,9 @@ function loadConversationForLanguage(language) {
       displayMessage(msgData.message, msgData.sender);
     });
   }
+  
+  // Update summary button state
+  updateSummaryButtonState();
 }
 
 // Dashboard Functions
@@ -1823,7 +1873,12 @@ async function generateAndSaveSummary(language = null) {
       showNotification('✅ Summary generated successfully!');
       return summary;
     } else {
-      showNotification('❌ Failed to generate summary. Please try again.');
+      // Check if it's an API key issue
+      if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
+        showNotification('❌ API key not configured. Please contact support.');
+      } else {
+        showNotification('❌ Failed to generate summary. The AI service may be temporarily unavailable.');
+      }
       return null;
     }
   } catch (error) {
