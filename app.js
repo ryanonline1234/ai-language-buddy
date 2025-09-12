@@ -699,8 +699,17 @@ function addMessage(message, sender, shouldAutoSpeak = true, shouldSaveToDatabas
     
     // Save to Firestore only for new messages (not loaded ones)
     if (shouldSaveToDatabase && db && window.auth.currentUser) {
-        const targetLanguage = document.getElementById('targetLanguage')?.value || 'Spanish';
+        const targetLanguage = document.getElementById('targetLanguage')?.value || currentActiveLanguage || 'Spanish';
         saveMessageToFirestore(message, sender, targetLanguage);
+        
+        // Also update local conversation history to keep it in sync
+        if (!conversationHistoryByLanguage[targetLanguage]) {
+            conversationHistoryByLanguage[targetLanguage] = [];
+        }
+        conversationHistoryByLanguage[targetLanguage].push({
+            message: message,
+            sender: sender
+        });
     }
 }
 
