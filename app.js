@@ -1239,10 +1239,36 @@ function saveCurrentConversationState() {
   }
 }
 
-// Display message without saving to Firestore (for loading existing messages)
+// Display message without saving to Firestore or updating conversation history (for loading existing messages)
 function displayMessage(message, sender) {
-    // Use addMessage with auto-speak and database save disabled for loaded messages
-    addMessage(message, sender, false, false);
+    const chatMessages = document.getElementById('chat-messages');
+    if (!chatMessages) {
+        console.error('Chat messages container not found');
+        return;
+    }
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.classList.add('message', sender);
+    
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    // Add buttons to messages
+    const messageHTML = `
+        <div class="message-content">
+            <div class="message-text">${message}</div>
+            <div class="message-actions">
+                <button class="message-speaker-btn" onclick="speakMessage('${message.replace(/'/g, "\\'")}', '${sender}')">🔊</button>
+                <button class="message-favorite-btn" onclick="favoriteMessage('${message.replace(/'/g, "\\'")}', '${sender}')">⭐</button>
+            </div>
+            <div class="message-time">${timestamp}</div>
+        </div>
+    `;
+    
+    messageDiv.innerHTML = messageHTML;
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Note: No conversation history update or database save for loaded messages
 }
 
 function loadConversationForLanguage(language) {
@@ -1767,7 +1793,20 @@ Provide your response as a JSON object with this structure:
     });
 
     if (!response.ok) {
-      console.error('Failed to generate summary:', response.statusText);
+      const errorText = await response.text();
+      console.error('Failed to generate summary:', response.status, response.statusText, errorText);
+      
+      // Provide specific error messages based on status code
+      if (response.status === 400) {
+        console.error('API request error - invalid parameters');
+      } else if (response.status === 401) {
+        console.error('API authentication failed - check API key');
+      } else if (response.status === 429) {
+        console.error('API rate limit exceeded');
+      } else if (response.status >= 500) {
+        console.error('API server error');
+      }
+      
       return null;
     }
 
@@ -1877,14 +1916,22 @@ async function generateAndSaveSummary(language = null) {
       if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
         showNotification('❌ API key not configured. Please contact support.');
       } else {
-        showNotification('❌ Failed to generate summary. The AI service may be temporarily unavailable.');
+        showNotification('❌ Failed to generate summary. The AI service may be temporarily unavailable. Please try again in a few minutes.');
       }
       return null;
     }
   } catch (error) {
     console.error('Error in generateAndSaveSummary:', error);
     progressNotification.remove();
-    showNotification('❌ Error generating summary. Please check your connection.');
+    
+    // Provide specific error messages based on error type
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      showNotification('❌ Network error. Please check your internet connection and try again.');
+    } else if (error.message.includes('JSON')) {
+      showNotification('❌ Error processing summary response. Please try again.');
+    } else {
+      showNotification('❌ Unexpected error generating summary. Please try again or contact support.');
+    }
     return null;
   }
 }
